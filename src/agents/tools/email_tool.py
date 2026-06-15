@@ -106,7 +106,7 @@ def create_read_emails_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "read_emails",
-                "description": "Read recent emails from your inbox. Requires EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_IMAP_SERVER in .env.",
+                "description": "Read recent emails from your inbox. Always call this when the user asks to read emails. Raises an error if env vars are missing.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -126,7 +126,7 @@ def create_send_email_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "send_email",
-                "description": "Send an email. Requires EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_SMTP_SERVER in .env.",
+                "description": "Send an email to any address. Use this when the user asks to send an email.",
                 "parameters": {
                     "type": "object",
                     "properties": {
