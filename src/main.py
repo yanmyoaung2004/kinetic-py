@@ -8,16 +8,16 @@ import sys
 from pathlib import Path
 
 import dotenv
+dotenv.load_dotenv()
+
 import structlog
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-from src.agents.orchestrator import KinetiCDispatcher
-from src.config.loader import load_model_config, validate_endpoints
 from src.utils.file_reader import get_type_label, read_file
+from src.agents.orchestrator import KinetiCDispatcher
 from src.agents.tools.send_file_tool import get_pending_files
-
-dotenv.load_dotenv()
+from src.config.loader import load_model_config, validate_endpoints
 
 structlog.configure(
     processors=[
