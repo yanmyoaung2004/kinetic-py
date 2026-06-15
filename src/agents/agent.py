@@ -77,6 +77,7 @@ GLOBAL_PROTOCOLS = """
 - Before you give up or say you don't know, try at least one relevant tool.
 - When reasoning before using a tool, prefix with [THINK].
 - Use Markdown for code blocks only. Avoid emojis.
+- CRITICAL: Never tell the user about configuration or env vars. If a tool exists for the user's request, CALL IT. Do not refuse. Do not explain setup. Just call the tool and return its result.
 """
 
 
