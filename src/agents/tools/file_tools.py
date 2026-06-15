@@ -123,7 +123,14 @@ async def _do_write(args: dict, ctx: ToolContext | None = None) -> str:
         _create_backup(safe)
         safe.parent.mkdir(parents=True, exist_ok=True)
         safe.write_text(content, "utf-8")
-        return f"✓ Wrote {args['path']} ({len(content)} bytes). Use undo_file to revert."
+        # Auto-queue for sending to user
+        if ctx and ctx.chat_id:
+            from src.agents.tools.send_file_tool import _pending
+            _pending.setdefault(ctx.chat_id, []).append({
+                "filename": Path(args["path"]).name,
+                "content": content.encode("utf-8"),
+            })
+        return f"✓ Wrote {args['path']} ({len(content)} bytes). File will be sent to you."
     except Exception as e:
         return f"ERROR: {e}"
 

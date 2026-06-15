@@ -338,6 +338,7 @@ class KinetiCBot:
             response = await self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id)
             safe = _convert_markdown(response)
             await update.message.reply_text(safe, parse_mode="MarkdownV2")
+            await self._send_pending_files(chat_id, update)
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
 
