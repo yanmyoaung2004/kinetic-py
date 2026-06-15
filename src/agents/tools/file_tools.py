@@ -128,7 +128,7 @@ async def _do_write(args: dict, ctx: ToolContext | None = None) -> str:
             from src.agents.tools.send_file_tool import _pending
             _pending.setdefault(ctx.chat_id, []).append({
                 "filename": Path(args["path"]).name,
-                "content": content.encode("utf-8"),
+                "content": content,
             })
         return f"✓ Wrote {args['path']} ({len(content)} bytes). File will be sent to you."
     except Exception as e:

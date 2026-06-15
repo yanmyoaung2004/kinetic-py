@@ -299,7 +299,11 @@ class KinetiCBot:
         files = get_pending_files(chat_id)
         for f in files:
             await update.effective_chat.send_action("upload_document")
-            await update.message.reply_document(document=(f["filename"], f["content"]))
+            content = f["content"]
+            if isinstance(content, str):
+                content = content.encode("utf-8")
+            from telegram import InputFile
+            await update.message.reply_document(document=InputFile(content, filename=f["filename"]))
 
     async def handle_file(self, update: Update, context: None = None) -> None:
         if not update.message:
