@@ -311,6 +311,16 @@ class AgentInstance(IAgent):
                     self._think_providers,
                     lambda p: p.generate_with_tools(self._memory.get_messages(), available_tools),
                 )
+                # Some models return raw JSON args as content instead of tool_calls
+                if not response.tool_calls and response.content and response.content.strip().startswith("{"):
+                    try:
+                        parsed = json.loads(response.content)
+                        if "path" in parsed and "content" in parsed:
+                            logger.info("[AUTO] Detected raw write_file args in content")
+                            response.tool_calls = [{"id": "auto_0", "type": "function", "function": {"name": "write_file", "arguments": response.content}}]
+                            response.content = None
+                    except (json.JSONDecodeError, TypeError):
+                        pass
             except Exception as err:
                 if available_tools:
                     logger.warning("[TOOL_FALLBACK] Model rejected tools (%s). Retrying without tools.", err)
@@ -335,7 +345,7 @@ class AgentInstance(IAgent):
                     self._memory.append(ChatMessage(role="assistant", content=answer or "Done."))
                     return answer or "Done."
 
-                self._memory.append(ChatMessage(role="assistant", content="", tool_calls=calls))
+                self._memory.append(ChatMessage(role="assistant", content=response.content or "", tool_calls=calls))
 
                 for call in calls:
                     fn_name = call.get("function", {}).get("name", "")
