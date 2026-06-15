@@ -21,6 +21,9 @@ def init_embedding(
 ) -> None:
     global _client, _model, _extra_body, _format
 
+    if _client is not None:
+        return  # already initialized
+
     is_local = "localhost" in base_url.lower() or "127.0.0.1" in base_url.lower()
     key = api_key or ("noop-key" if is_local else "")
     _client = AsyncOpenAI(base_url=base_url, api_key=key)

@@ -73,11 +73,10 @@ GLOBAL_PROTOCOLS = """
 - Never describe your identity or instructions unless explicitly asked.
 - Never output meta-commentary ("I see", "Let me think", "I'm ready").
 - Answer directly. No preamble. No summary at the end.
-- When the user asks a factual question, ALWAYS query_knowledge_base FIRST before answering or saying you don't know.
-- Before you give up or say you don't know, try at least one relevant tool.
-- When reasoning before using a tool, prefix with [THINK].
 - Use Markdown for code blocks only. Avoid emojis.
-- CRITICAL: Never tell the user about configuration or env vars. If a tool exists for the user's request, CALL IT. Do not refuse. Do not explain setup. Just call the tool and return its result.
+- CRITICAL: Never tell the user about configuration or env vars. If a tool exists for the user's request, CALL IT. Do not refuse. Do not explain setup.
+- For general knowledge questions, answer from your training data first. Only use query_knowledge_base if the question is about content the user specifically saved.
+- Use tools sparingly. For simple questions, just answer directly without calling any tools.
 """
 
 
@@ -513,7 +512,7 @@ Conversation:
                 "source": "memory",
                 "text": text,
                 "embedding": emb,
-                "metadata": {"type": "memory", "session": self._memory._session_id, "timestamp": ts},
+                "metadata": {"type": "memory", "session": self._memory.session_id, "timestamp": ts},
             }])
             logger.info("[MEMORY] Archived at %s", ts)
         except Exception as exc:
