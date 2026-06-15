@@ -318,7 +318,23 @@ class AgentInstance(IAgent):
             if err:
                 return None
             ctx = ToolContext(chat_id=self._current_chat_id)
-            result = await _read_emails({"folder": "INBOX", "max": 8, "since_days": 3}, ctx)
+
+            # Parse filter hints from user message
+            params = {"folder": "INBOX", "max": 8, "since_days": 3}
+            import re as _re
+            from_match = _re.search(r'from\s+([\w.@+-]+)', message.lower())
+            if from_match:
+                params["from"] = from_match.group(1)
+            if "yesterday" in message.lower():
+                params["since_days"] = 1
+            elif "today" in message.lower():
+                params["since_days"] = 0
+            elif "week" in message.lower():
+                params["since_days"] = 7
+            elif "month" in message.lower():
+                params["since_days"] = 30
+
+            result = await _read_emails(params, ctx)
             if result.startswith("ERROR"):
                 return None
             # Replace any existing email context block

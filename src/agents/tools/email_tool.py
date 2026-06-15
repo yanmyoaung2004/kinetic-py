@@ -47,13 +47,26 @@ async def _read_emails(args: dict[str, Any], ctx: ToolContext | None) -> str:
     folder = args.get("folder", "INBOX")
     max_emails = min(args.get("max", 10), 50)
     since_days = args.get("since_days", 1)
+    from_addr = args.get("from", "")
+    subject_filter = args.get("subject", "")
     try:
         cfg = _get_cfg()
         mail = imaplib.IMAP4_SSL(cfg["imap_host"], cfg["imap_port"])
         mail.login(cfg["addr"], cfg["pass"])
         mail.select(folder)
-        date_since = (time_module.strftime("%d-%b-%Y", time_module.gmtime(time_module.time() - since_days * 86400)))
-        status, data = mail.search(None, f'(SINCE {date_since})')
+
+        # Build IMAP search criteria
+        criteria = []
+        if since_days:
+            date_since = time_module.strftime("%d-%b-%Y", time_module.gmtime(time_module.time() - since_days * 86400))
+            criteria.append(f'SINCE {date_since}')
+        if from_addr:
+            criteria.append(f'FROM "{from_addr}"')
+        if subject_filter:
+            criteria.append(f'SUBJECT "{subject_filter}"')
+
+        search_cmd = f'({" ".join(criteria)})' if criteria else "ALL"
+        status, data = mail.search(None, search_cmd)
         if status != "OK":
             mail.logout()
             return f"No emails found in {folder}"
@@ -118,7 +131,9 @@ def create_read_emails_tool() -> ToolHandler:
                     "properties": {
                         "folder": {"type": "string", "description": "Mail folder (default: INBOX)"},
                         "max": {"type": "number", "description": "Max emails to fetch (default: 10, max: 50)"},
-                        "since_days": {"type": "number", "description": "Look back days (default: 1)"},
+                        "since_days": {"type": "number", "description": "Look back days (default: 1). Use a larger number like 7 or 30 to go further back."},
+                        "from": {"type": "string", "description": "Filter by sender email address (e.g., 'test@gmail.com')"},
+                        "subject": {"type": "string", "description": "Filter by subject line keyword"},
                     },
                 },
             },
