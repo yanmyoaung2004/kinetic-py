@@ -24,7 +24,7 @@ from src.agents.tools.pipeline_tool import create_run_pipeline_tool
 from src.agents.tools.registry import ToolContext, ToolHandler, ToolRegistry, create_send_message_tool, create_web_search_tool
 from src.agents.tools.code_tool import create_run_code_tool
 from src.agents.tools.send_file_tool import create_send_file_tool
-from src.agents.tools.email_tool import create_read_emails_tool, create_send_email_tool
+from src.agents.tools.email_tool import create_read_email_body_tool, create_read_emails_tool, create_reply_email_tool, create_send_email_tool
 from src.agents.tools.image_tool import create_generate_image_tool
 from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
 from src.agents.tools.browser import (
@@ -209,7 +209,9 @@ class AgentInstance(IAgent):
         self._tools.register(create_list_monitors_tool(self.id))
         # Email
         self._tools.register(create_read_emails_tool())
+        self._tools.register(create_read_email_body_tool())
         self._tools.register(create_send_email_tool())
+        self._tools.register(create_reply_email_tool())
         # Code execution
         self._tools.register(create_run_code_tool())
         # Image generation

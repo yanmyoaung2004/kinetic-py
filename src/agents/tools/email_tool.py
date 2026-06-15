@@ -120,6 +120,160 @@ async def _send_email(args: dict[str, Any], ctx: ToolContext | None) -> str:
         return f"ERROR sending email: {e}"
 
 
+async def _read_email_body(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    err = _check_config()
+    if err:
+        return f"ERROR: {err}"
+    query = args.get("query", "")
+    if not query:
+        return "ERROR: 'query' parameter is required to find the email."
+    folder = args.get("folder", "INBOX")
+    try:
+        cfg = _get_cfg()
+        mail = imaplib.IMAP4_SSL(cfg["imap_host"], cfg["imap_port"])
+        mail.login(cfg["addr"], cfg["pass"])
+        mail.select(folder)
+
+        # Search by subject or from
+        status, data = mail.search(None, f'(OR SUBJECT "{query}" FROM "{query}")')
+        if status != "OK" or not data[0]:
+            mail.logout()
+            return f"No email found matching: {query}"
+
+        ids = data[0].split()
+        latest_id = ids[-1]
+        status, msg_data = mail.fetch(latest_id, "(RFC822)")
+        if status != "OK":
+            mail.logout()
+            return "Could not fetch email content."
+
+        msg = BytesParser().parsebytes(msg_data[0][1])
+
+        # Extract body
+        body = ""
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_type() == "text/plain":
+                    body = part.get_payload(decode=True).decode("utf-8", errors="replace")
+                    break
+                elif part.get_content_type() == "text/html":
+                    import re
+                    html = part.get_payload(decode=True).decode("utf-8", errors="replace")
+                    body = re.sub(r"<[^>]+>", "", html)
+        else:
+            body = msg.get_payload(decode=True).decode("utf-8", errors="replace")
+
+        body = body[:5000]
+        mail.logout()
+
+        result = (
+            f"From: {msg.get('From', '')}\n"
+            f"Subject: {msg.get('Subject', '')}\n"
+            f"Date: {msg.get('Date', '')}\n"
+            f"---\n{body}"
+        )
+        return result
+    except Exception as e:
+        return f"ERROR reading email body: {e}"
+
+
+def create_read_email_body_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "read_email_body",
+                "description": "Read the full content of a specific email. Search by sender or subject. Use this when the user asks 'tell me more about this email' or 'show me the content'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search by sender email or subject keyword to find the email"},
+                        "folder": {"type": "string", "description": "Mail folder (default: INBOX)"},
+                    },
+                    "required": ["query"],
+                },
+            },
+        ),
+        execute=_read_email_body,
+    )
+
+
+async def _reply_email(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    err = _check_config()
+    if err:
+        return f"ERROR: {err}"
+    query = args.get("query", "")
+    body = args.get("body", "")
+    if not query or not body:
+        return "ERROR: 'query' and 'body' are required."
+    folder = args.get("folder", "INBOX")
+    try:
+        cfg = _get_cfg()
+
+        # Fetch original email to get its Message-ID
+        mail = imaplib.IMAP4_SSL(cfg["imap_host"], cfg["imap_port"])
+        mail.login(cfg["addr"], cfg["pass"])
+        mail.select(folder)
+        status, data = mail.search(None, f'(OR SUBJECT "{query}" FROM "{query}")')
+        if status != "OK" or not data[0]:
+            mail.logout()
+            return f"No email found matching: {query}"
+        latest_id = data[0].split()[-1]
+        status, msg_data = mail.fetch(latest_id, "(RFC822)")
+        orig_msg = BytesParser().parsebytes(msg_data[0][1])
+        orig_msg_id = orig_msg.get("Message-ID", "")
+        orig_subject = orig_msg.get("Subject", "")
+        orig_from = orig_msg.get("From", "")
+        mail.logout()
+
+        # Extract original From address for reply-to
+        import re
+        reply_to_match = re.search(r'<([^>]+)>', orig_from) if '<' in orig_from else None
+        reply_to = reply_to_match.group(1) if reply_to_match else orig_from
+
+        subject = orig_subject
+        if not subject.lower().startswith("re:"):
+            subject = f"Re: {subject}"
+
+        msg = EmailMessage()
+        msg.set_content(body)
+        msg["Subject"] = subject
+        msg["From"] = cfg["addr"]
+        msg["To"] = reply_to
+        if orig_msg_id:
+            msg["In-Reply-To"] = orig_msg_id
+            msg["References"] = orig_msg_id
+
+        with smtplib.SMTP(cfg["smtp_host"], cfg["smtp_port"]) as s:
+            s.starttls()
+            s.login(cfg["addr"], cfg["pass"])
+            s.send_message(msg)
+
+        return f"Reply sent to {reply_to}: {subject}"
+    except Exception as e:
+        return f"ERROR replying: {e}"
+
+
+def create_reply_email_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "reply_to_email",
+                "description": "Reply to an email. Finds the original email by sender or subject and sends a reply. Use this when the user says 'reply to' or 'respond to'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search by sender email or subject to find which email to reply to"},
+                        "body": {"type": "string", "description": "The reply message body"},
+                        "folder": {"type": "string", "description": "Mail folder (default: INBOX)"},
+                    },
+                    "required": ["query", "body"],
+                },
+            },
+        ),
+        execute=_reply_email,
+    )
+
+
 def create_read_emails_tool() -> ToolHandler:
     return ToolHandler(
         definition=ToolDefinition(

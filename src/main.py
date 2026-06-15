@@ -70,22 +70,28 @@ COMMANDS_HELP = """
 
 
 def _convert_markdown(text: str) -> str:
-    """Escape Telegram MarkdownV2 special chars, preserving code blocks."""
+    """Convert Markdown to Telegram HTML format."""
     import re
+    import html
 
-    # Protect code blocks
-    blocks: list[str] = []
-    def _save(m: re.Match) -> str:
-        blocks.append(m.group(0))
-        return f"\x00CODEBLOCK{len(blocks)-1}\x00"
-    text = re.sub(r"```[\s\S]*?```|`[^`]+`", _save, text)
+    # Escape HTML entities first
+    text = html.escape(text)
 
-    # Escape remaining special chars
-    text = re.sub(r"([_*[\]()~`>#+\-=|{}.!])", r"\\\1", text)
-
-    # Restore code blocks
-    for i, block in enumerate(blocks):
-        text = text.replace(f"\x00CODEBLOCK{i}\x00", block)
+    # Convert markdown to HTML tags
+    # Code blocks
+    text = re.sub(r"```([\s\S]*?)```", r"<pre>\1</pre>", text)
+    # Inline code
+    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    # Bold **text**
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    # Italic *text*
+    text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
+    # Underline __text__
+    text = re.sub(r"__(.+?)__", r"<u>\1</u>", text)
+    # Strikethrough ~~text~~
+    text = re.sub(r"~~(.+?)~~", r"<s>\1</s>", text)
+    # Newlines
+    text = re.sub(r"\n{2,}", "\n\n", text)
     return text
 
 
@@ -290,7 +296,7 @@ class KinetiCBot:
         try:
             response = await self.dispatcher.dispatch(self._agent_target, text, 0, chat_id)
             safe = _convert_markdown(response)
-            await update.message.reply_text(safe, parse_mode="MarkdownV2")
+            await update.message.reply_text(safe, parse_mode="HTML")
             await self._send_pending_files(chat_id, update)
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
@@ -341,7 +347,7 @@ class KinetiCBot:
 
             response = await self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id)
             safe = _convert_markdown(response)
-            await update.message.reply_text(safe, parse_mode="MarkdownV2")
+            await update.message.reply_text(safe, parse_mode="HTML")
             await self._send_pending_files(chat_id, update)
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
@@ -399,14 +405,14 @@ class KinetiCBot:
                                 chat_id = task.get("chat_id")
                                 if chat_id and self._app:
                                     safe = _convert_markdown(f"[MONITOR] Triggered: {desc}\n\n{response[:500]}")
-                                    await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="MarkdownV2")
+                                    await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="HTML")
                         else:
                             response = await self.dispatcher.dispatch(agent_id, f"[REMINDER] {desc}")
                             mark_task_run(agent_id, task["id"])
                             chat_id = task.get("chat_id")
                             if chat_id and self._app:
                                 safe = _convert_markdown(response or "")
-                                await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="MarkdownV2")
+                                await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="HTML")
                     except Exception as e:
                         logger.warning("[SCHEDULER] Task '%s' failed: %s", task.get("id"), e)
                         mark_task_run(agent_id, task["id"])
