@@ -14,6 +14,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from src.agents.orchestrator import KinetiCDispatcher
 from src.config.loader import load_model_config, validate_endpoints
+from src.utils.file_reader import get_type_label, read_file
 
 dotenv.load_dotenv()
 
@@ -292,6 +293,46 @@ class KinetiCBot:
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
 
+    async def handle_file(self, update: Update, context: None = None) -> None:
+        if not update.message:
+            return
+        chat_id = update.effective_chat.id if update.effective_chat else 0
+        caption = (update.message.caption or "").strip()
+
+        await update.effective_chat.send_action("typing")
+
+        try:
+            file = await (update.message.effective_attachment.get_file())
+            filename = getattr(update.message.effective_attachment, "file_name", file.file_path.split("/")[-1] if file.file_path else "unknown.txt")
+
+            from pathlib import Path
+            sandbox = Path("agent_sandbox")
+            sandbox.mkdir(exist_ok=True)
+            file_path = sandbox / filename
+
+            await file.download_to_drive(file_path)
+
+            result = read_file(file_path)
+            if result.get("error"):
+                await update.message.reply_text(f"Error reading file: {result['error']}")
+                return
+
+            label = get_type_label(result)
+            file_info = f"[Uploaded via Telegram — {label}: {result['name']} ({result.get('size', 0)} bytes)]\n\n"
+            file_content = result.get("content", "")
+            if len(file_content) > 50000:
+                file_content = file_content[:50000] + "\n\n[...truncated]"
+
+            full_message = f"{file_info}{file_content}"
+            if caption:
+                full_message += f"\n\nUser message: {caption}"
+
+            response = await self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id)
+            safe = _convert_markdown(response)
+            await update.message.reply_text(safe, parse_mode="MarkdownV2")
+        except Exception as e:
+            await update.message.reply_text(f"Error: {e}")
+
     async def start(self) -> None:
         # Start background tasks first (don't depend on Telegram)
         asyncio.create_task(self._validate_coro)
@@ -304,6 +345,7 @@ class KinetiCBot:
             try:
                 self._app = Application.builder().token(token).build()
                 self._app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+                self._app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, self.handle_file))
                 self._app.add_handler(CommandHandler(["start", "help", "models", "providers", "status", "profile", "reset", "session", "task", "knowledge"], self.handle_command))
 
                 await self._app.initialize()

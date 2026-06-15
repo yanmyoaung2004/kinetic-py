@@ -1,0 +1,66 @@
+ML / AI Engineer
+Yan Myo Aung
+ymyo44277@gmail.com  ·  (+95) 978 126 1391  ·  Yangon, Myanmar
+
+
+
+AI/ML Engineer with hands-on experience designing and deploying multi-agent AI systems, LLM-powered inference pipelines, and real-time cybersecurity platforms. Proficient in the full ML workflow — from dataset preparation and model training through evaluation, optimization, and production deployment. Demonstrates strong systems-engineering fundamentals and a track record of delivering AI products under competition conditions. Awarded Top Ten Finalist and People's Choice Award at the national APT Cybersecurity AI Competition and selected to represent Myanmar at APICTA 2025.
+TECHNICAL SKILLS
+
+ML / DL Frameworks:  PyTorch, TensorFlow, HuggingFace Transformers, scikit-learn, ONNX
+LLM & Agentic AI:  LangChain, LangGraph, RAG pipelines, transformers, multi-agent orchestration, prompt engineering
+Languages:  Python (primary), TypeScript, JavaScript, SQL, Bash
+Backend & APIs:  FastAPI, REST, gRPC, WebSockets, RabbitMQ, Nginx
+Cloud & DevOps:  Docker, Kubernetes, AWS, Linux, CI/CD
+Databases & Search:  PostgreSQL, MySQL, MongoDB, Redis, Elasticsearch, SQLite-vec
+AI Tooling:  SIEM/Wazuh integration, MITRE ATT&CK, MLflow (experiment tracking), Pytest
+
+PROFESSIONAL EXPERIENCE
+Lead AI Engineer — InnoIgniterAI — Cybersecurity AI Platform	Jan 2025 – Dec 2025
+•	Architected a production multi-agent AI platform for real-time threat detection; system integrates three specialist agents (Host, Detection, Knowledge) with autonomous A2A communication and ML/DL-driven threat classification.
+•	Built RAG-based Knowledge Agent with MITRE ATT&CK mapping, enabling structured intelligence retrieval over live security event streams.
+•	Integrated enterprise SIEM (Wazuh) for anomaly detection, alerting, and SOAR-style automated incident response workflows.
+•	Designed and shipped multilingual (English / Myanmar) voice and chat interface, making complex AI threat explanations accessible to non-technical operators.
+•	Deployed containerized microservices on cloud infrastructure; tuned for low-latency inference under concurrent security event load.
+•	Platform won Top Ten Finalist & People's Choice Award at the national APT Cybersecurity AI Competition; selected for APICTA 2025 (Taiwan).
+Senior Software Engineer — Distributed Systems & Enterprise Platforms	2023 – 2025
+•	Built microservices-based e-commerce and ERP systems with API Gateway, RabbitMQ message queuing, and multi-database backends (PostgreSQL, Redis, MongoDB).
+•	Developed real-time collaborative editor with WebSocket-based state synchronization and distributed conflict resolution.
+•	Integrated LLM-based content generation and recommendation engines into production SaaS products.
+•	Configured Nginx reverse proxy and tuned backend services for high-concurrency production environments.
+
+SELECTED PROJECTS
+InnoIgniterAI — Cybersecurity Multi-Agent AI Platform  |  Stack: Python · LangChain/LangGraph · PyTorch · Wazuh · FastAPI · Docker
+•	Designed three-agent architecture (Scout, Detection, Knowledge) with symbolic planning and autonomous task delegation; each agent operates an independent ReAct loop with tool-use capabilities.
+•	RAG pipeline ingests MITRE ATT&CK knowledge base and live SIEM events; retrieval accuracy validated against a curated cybersecurity QA benchmark.
+•	ML/DL threat classifier distinguishes APT behavior patterns with sub-100ms inference latency in a containerized FastAPI inference server.
+•	Won People's Choice Award and Top Ten Finalist at APTYPS 2025 Myanmar; represents Myanmar at APICTA 2025 international competition.
+Kinetic — Autonomous Multi-Agent Research System  |  Stack: TypeScript · SQLite-vec · Transformers.js · Groq · Telegram Bot API
+•	Built a personal autonomous agent with four specialist sub-agents, Telegram integration, and automatic LLM provider failover (Groq → Ollama → OpenRouter).
+•	Implemented hybrid memory (KineticMemory): vector search via sqlite-vec with nomic-embed-text-v1 embeddings + SQLite FTS5 full-text index for precise factual recall.
+•	Resolved concurrency bugs in singleton initialization, fixed tensor memory leaks from Transformers.js, and hardened FTS5 against injection attacks.
+Argus — Multi-Agent Autonomous Research Agent  |  Stack: TypeScript · SQLite knowledge graph · LLM APIs
+•	Designed four specialist agents (Scout, Deep-dive, Verification, Synthesis) with a symbolic planning layer and full provenance tracking on every retrieved fact.
+•	SQLite knowledge graph stores confidence scores, credibility ratings, and source metadata; supports audit-ready report generation with citation chains.
+
+React DevTools Performance Extension  |  Stack: TypeScript · Chrome Extensions API · React Fiber internals
+•	Hooked into React's onCommitFiberRoot to track per-component render timing; surfaces heatmap, flamegraph, and prop-diff views in a Chrome DevTools panel.
+•	Causal chain analysis classifies ROOT vs. PROPAGATION renders and detects wasted-chain, context-explosion, and prop-cascade anti-patterns with estimated reduction percentages.
+
+EDUCATION
+B.Sc. (Hons) Computer Science  —  University of Bedfordshire (UK) – In partnership with STI Myanmar College
+Final year; studies paused due to project and competition commitments.
+ITPEC Certifications  —  Information Technology Professionals Examination Council
+•	Fundamental Information Technology Engineer (FE) — Certified
+•	Information Technology Passport (IP) — Certified; awarded 2nd highest score across all ITPEC member countries
+Professional Certificate in Software Engineering
+Host Myanmar Institute
+
+AWARDS & RECOGNITION
+
+•	People's Choice Award — APTYPS 2025 Myanmar (National APT Cybersecurity AI Competition)
+•	Top Ten Finalist — National APT Cybersecurity AI Chatbot Competition
+•	ITPEC IP — 2nd Highest Score Across All Member Countries
+•	APICTA 2025 — Selected to represent Myanmar internationally (Taiwan, December 2025)
+•	World Engineering Day Hackathon 2025 — Participant
+•	MJC & JICA Hackathons 2023 & 2024 — Competitively selected participant

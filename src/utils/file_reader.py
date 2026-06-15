@@ -58,6 +58,29 @@ def read_file(path: str | Path) -> dict[str, Any]:
         except Exception as e:
             return {"error": str(e), "content": ""}
 
+    # Excel
+    if suffix in (".xlsx", ".xls"):
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
+            sheets_info = []
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                rows = list(ws.iter_rows(values_only=True))
+                preview = f"  Sheet '{sheet_name}': {len(rows)} rows, {len(rows[0]) if rows else 0} cols\n"
+                if rows:
+                    preview += "  First 10 rows:\n"
+                    for r in rows[:10]:
+                        preview += f"    {list(r)}\n"
+                sheets_info.append(preview)
+            wb.close()
+            text = "\n".join(sheets_info)
+            return {"type": "excel", "name": name, "content": text, "sheets": wb.sheetnames, "size": path.stat().st_size}
+        except ImportError:
+            return {"error": "Excel support requires openpyxl: pip install openpyxl", "content": ""}
+        except Exception as e:
+            return {"error": str(e), "content": ""}
+
     # JSON
     if suffix == ".json":
         try:
@@ -85,6 +108,7 @@ def get_type_label(result: dict[str, Any]) -> str:
         "text": "Text file",
         "pdf": "PDF document",
         "csv": "CSV spreadsheet",
+        "excel": "Excel spreadsheet",
         "json": "JSON data",
         "image": "Image",
         "binary": "Binary file",
