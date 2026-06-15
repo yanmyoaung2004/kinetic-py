@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K.I.N.E.T.I.C. Dashboard</title>
+<link rel="icon" type="image/png" href="/favicon.ico?v=2">
+<style>
+:root {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --border: #dee2e6;
+  --text: #212529;
+  --text-secondary: #6c757d;
+  --accent: #4361ee;
+  --accent-hover: #3a56d4;
+  --accent-light: #eef0ff;
+  --danger: #dc3545;
+  --success: #28a745;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+  --radius: 8px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+.layout { display: flex; height: 100vh; }
+
+/* Sidebar */
+.sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.sidebar-header { padding: 20px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-header img { display: block; height: 28px; width: auto; }
+.sidebar-header .sub { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
+.nav { display: flex; flex-direction: column; gap: 2px; padding: 8px; flex: 1; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; color: var(--text-secondary); transition: all .15s; border: none; background: none; width: 100%; text-align: left; }
+.nav-item:hover { background: var(--accent-light); color: var(--accent); }
+.nav-item.active { background: var(--accent); color: #fff; }
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+/* Main */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.tab-content { display: none; flex: 1; flex-direction: column; height: 100%; }
+.tab-content.active { display: flex; }
+.tab-header { padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+.tab-header h2 { font-size: 18px; font-weight: 600; }
+.tab-body { flex: 1; padding: 20px 24px; overflow-y: auto; }
+
+/* Chat */
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+.msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; line-height: 1.5; font-size: 14px; white-space: pre-wrap; word-break: break-word; position: relative; }
+.msg .ts { font-size: 10px; opacity: .5; margin-top: 4px; display: block; }
+.msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.msg.user .ts { text-align: right; color: rgba(255,255,255,.6); }
+.msg.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.msg.system { align-self: center; background: #fff3cd; border: 1px solid #ffc107; color: #856404; font-size: 12px; }
+.msg.error { align-self: center; background: #f8d7da; border: 1px solid var(--danger); color: #721c24; font-size: 12px; }
+.typing-indicator { align-self: flex-start; display: flex; gap: 4px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; border-bottom-left-radius: 4px; }
+.typing-indicator span { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); animation: bounce 1.4s infinite ease-in-out; }
+.typing-indicator span:nth-child(2) { animation-delay: .16s; }
+.typing-indicator span:nth-child(3) { animation-delay: .32s; }
+@keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+.chat-input-area { padding: 12px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 8px; align-items: flex-end; }
+.chat-input-area textarea { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); resize: none; font-family: inherit; font-size: 14px; outline: none; line-height: 1.4; min-height: 42px; max-height: 120px; }
+.chat-input-area textarea:focus { border-color: var(--accent); }
+.btn { padding: 8px 20px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--bg); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { opacity: .9; }
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.card + .card { margin-top: 12px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat { text-align: center; padding: 20px; }
+.stat-value { font-size: 28px; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+/* Forms */
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text-secondary); }
+.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-family: inherit; outline: none; }
+.form-group input:focus, .form-group textarea:focus { border-color: var(--accent); }
+.form-group textarea { resize: vertical; min-height: 60px; }
+.form-row { display: flex; gap: 8px; }
+.form-row > * { flex: 1; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+th { font-weight: 600; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+tr:hover td { background: var(--bg); }
+
+/* JSON */
+.json-editor { width: 100%; min-height: 300px; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 13px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); resize: vertical; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar > .spacer { flex: 1; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-success { background: #d4edda; color: #155724; }
+.badge-warning { background: #fff3cd; color: #856404; }
+.badge-danger { background: #f8d7da; color: #721c24; }
+
+/* Loading */
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast */
+.toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 20px; border-radius: var(--radius); color: #fff; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.15); animation: slideIn .3s ease; }
+.toast-success { background: var(--success); }
+.toast-error { background: var(--danger); }
+.toast-info { background: var(--accent); }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.empty-state { text-align: center; padding: 40px; color: var(--text-secondary); }
+.empty-state svg { width: 48px; height: 48px; margin-bottom: 12px; opacity: .4; }
+.empty-state p { font-size: 14px; }
+
+/* Docs */
+.docs-body { max-width: 800px; line-height: 1.7; font-size: 14px; }
+.docs-body h3 { font-size: 18px; margin: 24px 0 12px; }
+.docs-body h4 { font-size: 15px; margin: 20px 0 8px; color: var(--accent); }
+.docs-body h5 { font-size: 13px; margin: 16px 0 6px; }
+.docs-body hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+.docs-body p { margin: 8px 0; }
+.docs-body ul, .docs-body ol { margin: 8px 0; padding-left: 20px; }
+.docs-body li { margin: 4px 0; }
+.docs-body code { background: #f0f1f3; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; }
+.docs-body pre code { background: none; padding: 0; }
+.docs-body table { width: 100%; margin: 12px 0; }
+.docs-body th { font-size: 12px; }
+.docs-body strong { font-weight: 600; }
+
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar-header { display: none; }
+  .nav { flex-direction: row; padding: 4px; }
+  .nav-item { white-space: nowrap; font-size: 12px; padding: 6px 10px; }
+  .nav-item svg { width: 14px; height: 14px; }
+  .msg { max-width: 95%; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img src="/logo-dark.png" alt="K.I.N.E.T.I.C." style="height:28px;display:block;margin-bottom:4px">
+      <div class="sub">v2 Dashboard</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-tab="chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Chat
+      </button>
+      <button class="nav-item" data-tab="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Status
+      </button>
+      <button class="nav-item" data-tab="models">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+        Models
+      </button>
+      <button class="nav-item" data-tab="agents">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Agents
+      </button>
+      <button class="nav-item" data-tab="knowledge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Knowledge
+      </button>
+      <button class="nav-item" data-tab="sessions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 3v18"/></svg>
+        Sessions
+      </button>
+      <button class="nav-item" data-tab="pipelines">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Pipelines
+      </button>
+      <button class="nav-item" data-tab="docs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Docs
+      </button>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Chat Tab -->
+    <div class="tab-content active" id="tab-chat">
+      <div class="tab-header" style="display:flex;align-items:center;justify-content:space-between">
+        <h2>Chat</h2>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--text-secondary)">Session:</span>
+          <select id="chat-session-select" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
+        </div>
+      </div>
+      <div class="chat-messages" id="chat-messages"><div class="empty-state"><p>Send a message to start chatting.</p></div></div>
+      <div class="chat-input-area">
+        <textarea id="chat-input" placeholder="Type a message... (Enter to send, Shift+Enter for new line)" rows="1" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+        <button class="btn btn-primary" id="chat-send" onclick="sendChat()" title="Send message">Send</button>
+      </div>
+    </div>
+
+    <!-- Status Tab -->
+    <div class="tab-content" id="tab-status">
+      <div class="tab-header"><h2>Status</h2></div>
+      <div class="tab-body" id="status-body"></div>
+    </div>
+
+    <!-- Models Tab -->
+    <div class="tab-content" id="tab-models">
+      <div class="tab-header"><h2>Models Configuration</h2></div>
+      <div class="tab-body">
+        <div class="toolbar">
+          <button class="btn btn-secondary btn-sm" onclick="testProvider()">Test Provider</button>
+          <select id="provider-select" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;display:none"></select>
+          <span id="test-result" style="font-size:12px"></span>
+          <span class="spacer"></span>
+          <button class="btn btn-primary btn-sm" id="btn-save-models" onclick="saveModels()">Save</button>
+        </div>
+        <textarea class="json-editor" id="models-editor"></textarea>
+      </div>
+    </div>
+
+    <!-- Agents Tab -->
+    <div class="tab-content" id="tab-agents">
+      <div class="tab-header"><h2>Agents Configuration</h2></div>
+      <div class="tab-body">
+        <div class="toolbar">
+          <span class="spacer"></span>
+          <button class="btn btn-primary btn-sm" id="btn-save-agents" onclick="saveAgents()">Save</button>
+        </div>
+        <textarea class="json-editor" id="agents-editor"></textarea>
+      </div>
+    </div>
+
+    <!-- Knowledge Tab -->
+    <div class="tab-content" id="tab-knowledge">
+      <div class="tab-header"><h2>Knowledge Base</h2></div>
+      <div class="tab-body">
+        <div class="toolbar"><button class="btn btn-primary btn-sm" id="btn-inject" onclick="injectKnowledge()">Inject</button></div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row">
+            <div class="form-group"><label>Text</label><textarea id="kb-text" placeholder="Content to index..." rows="3"></textarea></div>
+            <div class="form-group"><label>Or URL</label><input id="kb-url" placeholder="https://..."><label style="margin-top:8px">Or File Path</label><input id="kb-file" placeholder="agents_workspace/..."></div>
+          </div>
+          <div class="form-row"><div class="form-group"><label>Title (optional)</label><input id="kb-title" placeholder="Document title"></div></div>
+        </div>
+        <div id="kb-list"></div>
+      </div>
+    </div>
+
+    <!-- Sessions Tab -->
+    <div class="tab-content" id="tab-sessions">
+      <div class="tab-header"><h2>Sessions</h2></div>
+      <div class="tab-body">
+        <div class="toolbar">
+          <input id="new-session-name" placeholder="New session name..." style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+          <button class="btn btn-primary btn-sm" onclick="createSession()">Create</button>
+        </div>
+        <div id="sessions-list"></div>
+      </div>
+    </div>
+
+    <!-- Pipelines Tab -->
+    <div class="tab-content" id="tab-pipelines">
+      <div class="tab-header"><h2>Pipelines</h2></div>
+      <div class="tab-body">
+        <div class="toolbar">
+          <button class="btn btn-primary btn-sm" onclick="showPipelineForm()">New Pipeline</button>
+        </div>
+        <div id="pipelines-list"></div>
+        <div id="pipeline-form" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="form-group"><label>Name</label><input id="pl-name" placeholder="Pipeline name"></div>
+            <div class="form-group"><label>Description</label><input id="pl-desc" placeholder="What does this pipeline do?"></div>
+            <div class="form-group"><label>Steps (JSON array)</label><textarea id="pl-steps" rows="6" placeholder='[{"agentId":"main","prompt":"Do X with {{var}}","outputVar":"result"}]'></textarea></div>
+            <div class="toolbar"><span class="spacer"></span>          <button class="btn btn-primary btn-sm" id="btn-save-pipeline" onclick="savePipeline()">Save Pipeline</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Docs Tab -->
+    <div class="tab-content" id="tab-docs">
+      <div class="tab-header"><h2>Documentation</h2></div>
+      <div class="tab-body">
+        <div class="docs-body">
+
+<h3 id="docs-getting-started">Getting Started</h3>
+<ol>
+  <li>Install the package: <code>pip install -e ".[dev]"</code></li>
+  <li>Copy example configs: <code>copy config\models.example.json config\models.json</code> and <code>copy config\agents.example.json config\agents.json</code></li>
+  <li>Run the onboard wizard: <code>kinetic-cli onboard</code> or edit <code>config/models.json</code> manually</li>
+  <li>Set your API keys in <code>.env</code> file (see <code>.env.example</code>)</li>
+  <li>Start the system: <code>kinetic</code></li>
+  <li>Open <strong>http://localhost:18789</strong> in your browser</li>
+</ol>
+
+<hr>
+
+<h3 id="docs-chat">Chat</h3>
+<p>The Chat tab lets you send messages to your configured agent and see responses in real-time.</p>
+<ul>
+  <li><strong>Session selector</strong> — Switch between different conversation contexts. Each session has its own message history and memory.</li>
+  <li><strong>Send messages</strong> — Type in the input box and press Enter (or click Send). Use Shift+Enter for multiline messages.</li>
+  <li><strong>Agent response</strong> — The agent uses its configured model and tools to respond. Tool execution (web search, file ops, etc.) happens automatically.</li>
+  <li><strong>Tips</strong>: Ask the agent to search the web, save files, schedule reminders, or query its knowledge base.</li>
+</ul>
+
+<hr>
+
+<h3 id="docs-models">Models Configuration</h3>
+<p>The <strong>Models</strong> tab lets you edit <code>config/models.json</code> directly. This file defines your LLM providers and stage routing.</p>
+
+<h4>File Structure</h4>
+<pre style="background:#f4f5f7;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">{
+  "mode": "single|multi",
+  "embedding": {
+    "provider": "provider-name",
+    "model": "text-embedding-3-small"
+  },
+  "defaults": {
+    "classify":  { "provider": "...", "model": "..." },
+    "think":     { "provider": "...", "model": "...", "fallbacks": [...] },
+    "tool_call": { "provider": "...", "model": "..." },
+    "answer":    { "provider": "...", "model": "..." }
+  },
+  "providers": {
+    "my-provider": {
+      "baseUrl": "https://api.example.com/v1",
+      "apiKeyEnv": "MY_API_KEY"
+    }
+  }
+}</pre>
+
+<h4>Mode</h4>
+<ul>
+  <li><strong>single</strong> — One model handles everything (think stage only). Simpler, faster.</li>
+  <li><strong>multi</strong> — Classify → Think → Tool_call → Answer. Each stage can use a different provider/model for cost optimization.</li>
+</ul>
+
+<h4>Adding a New Provider</h4>
+<ol>
+  <li>Add an entry under <code>"providers"</code> with a name of your choice (e.g., <code>"openai"</code>, <code>"groq"</code>, <code>"ollama"</code>)</li>
+  <li><code>baseUrl</code> — The OpenAI-compatible API endpoint (must end in <code>/v1</code>)</li>
+  <li><code>apiKeyEnv</code> — The <strong>environment variable name</strong> (not the key itself) that holds your API key</li>
+  <li>Set the corresponding env var in your <code>.env</code> file</li>
+  <li>Reference the provider name in the <code>"defaults"</code> stages above</li>
+</ol>
+
+<h5>Example Providers</h5>
+<table>
+  <tr><th>Provider</th><th>baseUrl</th><th>apiKeyEnv</th></tr>
+  <tr><td>OpenAI</td><td>https://api.openai.com/v1</td><td>OPENAI_API_KEY</td></tr>
+  <tr><td>Groq</td><td>https://api.groq.com/openai/v1</td><td>GROQ_API_KEY</td></tr>
+  <tr><td>Ollama (local)</td><td>http://127.0.0.1:11434/v1</td><td>OLLAMA_API_KEY</td></tr>
+  <tr><td>OpenRouter</td><td>https://openrouter.ai/api/v1</td><td>OPENROUTER_API_KEY</td></tr>
+</table>
+
+<h4>Stage Routing</h4>
+<p>Each stage serves a different purpose:</p>
+<table>
+  <tr><th>Stage</th><th>Purpose</th><th>Recommended Model Type</th></tr>
+  <tr><td>classify</td><td>Intent classification (chitchat vs task)</td><td>Small/fast (Qwen 1B, Gemma 1B)</td></tr>
+  <tr><td>think</td><td>Main reasoning</td><td>Powerful (Llama 70B, Claude, GPT-4o)</td></tr>
+  <tr><td>tool_call</td><td>Structured tool output</td><td>Tool-capable (Llama 3, GPT, DeepSeek)</td></tr>
+  <tr><td>answer</td><td>Response formatting</td><td>Same as think, or cheaper</td></tr>
+</table>
+<p>Each stage entry can have <code>fallbacks</code> — an array of <code>{ provider, model }</code> to try if the primary fails.</p>
+
+<h4>Setting Up Embedding (RAG / Knowledge Base)</h4>
+<p>To use knowledge base features (index documents, semantic search, RAG), you need an embedding provider:</p>
+<ol>
+  <li><strong>Choose an embedding provider</strong> — This is separate from your chat model. Common options:
+    <ul>
+      <li>Ollama (local, free): <code>nomic-embed-text</code> or <code>all-minilm</code></li>
+      <li>OpenAI: <code>text-embedding-3-small</code> or <code>text-embedding-3-large</code></li>
+      <li>Any provider that offers <code>/v1/embeddings</code> endpoint</li>
+    </ul>
+  </li>
+  <li><strong>Add the provider</strong> to the <code>"providers"</code> section if not already present:
+    <pre style="background:#f4f5f7;padding:8px;border-radius:4px;font-size:12px">"ollama": {
+  "baseUrl": "http://127.0.0.1:11434/v1",
+  "apiKeyEnv": "OLLAMA_API_KEY"
+}</pre>
+  </li>
+  <li><strong>Add the <code>"embedding"</code> section</strong> at the top level of models.json:
+    <pre style="background:#f4f5f7;padding:8px;border-radius:4px;font-size:12px">"embedding": {
+  "provider": "ollama",
+  "model": "nomic-embed-text"
+}</pre>
+  </li>
+  <li><strong>Set the env var</strong> in <code>.env</code> — for local providers like Ollama, use a dummy value:
+    <pre style="background:#f4f5f7;padding:8px;border-radius:4px;font-size:12px">OLLAMA_API_KEY=ollama</pre>
+  </li>
+  <li><strong>Restart kinetic</strong> — You should see <code>[RAG] Embedding ready</code> in the logs</li>
+  <li><strong>If using Ollama</strong>, make sure the embedding model is pulled:
+    <pre style="background:#f4f5f7;padding:8px;border-radius:4px;font-size:12px">ollama pull nomic-embed-text</pre>
+  </li>
+  <li><strong>Verify</strong> — Go to the <strong>Knowledge</strong> tab and inject a document. Then ask the agent a question about it.</li>
+</ol>
+
+<hr>
+
+<h3 id="docs-agents">Agents</h3>
+<p>The <strong>Agents</strong> tab lets you edit <code>config/agents.json</code>. This file registers agents in the system.</p>
+
+<h4>File Structure</h4>
+<pre style="background:#f4f5f7;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">{
+  "settings": {
+    "defaults": { "type": "library", "can_delegate": false }
+  },
+  "registry": [
+    {
+      "id": "main",
+      "name": "Main Agent",
+      "soulPath": "./main/SOUL.md",
+      "provider": "openrouter",
+      "model": "gpt-4o-mini",
+      "can_delegate": true
+    }
+  ]
+}</pre>
+
+<h4>Fields</h4>
+<table>
+  <tr><th>Field</th><th>Description</th></tr>
+  <tr><td>id</td><td>Unique identifier for the agent</td></tr>
+  <tr><td>name</td><td>Display name</td></tr>
+  <tr><td>soulPath</td><td>Path to the <code>SOUL.md</code> file (relative to <code>config/</code>) that defines the agent's system prompt / personality</td></tr>
+  <tr><td>provider</td><td>Which provider to use (must match a key in models.json)</td></tr>
+  <tr><td>model</td><td>Model to use (if omitted, uses the think stage default)</td></tr>
+  <tr><td>can_delegate</td><td>Whether this agent can spawn sub-agents for specialized tasks</td></tr>
+</table>
+
+<h4>SOUL.md — Agent Personality</h4>
+<p>Each agent has a <code>config/&lt;agent-id&gt;/SOUL.md</code> file that serves as its system prompt. This is where you define:</p>
+<ul>
+  <li><strong>Personality</strong> — Who the agent is and how it should behave</li>
+  <li><strong>Communication style</strong> — Concise, formal, friendly, etc.</li>
+  <li><strong>Core directives</strong> — Rules the agent must follow (e.g., "Never state 'As an AI language model'")</li>
+  <li><strong>Boundaries</strong> — What the agent can and cannot do</li>
+</ul>
+<p>SOUL.md changes take effect immediately on restart — the system detects stale prompts and refreshes them automatically.</p>
+
+<h4>Tips</h4>
+<ul>
+  <li>You can have multiple agents with different personalities (e.g., main + code_expert + researcher)</li>
+  <li>Agents with <code>can_delegate: true</code> can spawn ephemeral specialist agents at runtime</li>
+  <li>Save via the dashboard then restart kinetic for changes to take effect</li>
+</ul>
+
+<hr>
+
+<h3 id="docs-knowledge">Knowledge Base</h3>
+<p>The <strong>Knowledge</strong> tab lets you manage the RAG (Retrieval-Augmented Generation) system. Requires an embedding provider to be configured in models.json (see Models docs above).</p>
+
+<h4>Injecting Documents</h4>
+<p>You can add content to the knowledge base three ways:</p>
+<ul>
+  <li><strong>Text</strong> — Paste or type content directly</li>
+  <li><strong>URL</strong> — Fetch a webpage and index its content</li>
+  <li><strong>File Path</strong> — Index a file from the sandbox (relative to project root)</li>
+</ul>
+<p>The system automatically chunks the content, generates embeddings, and stores them in <code>agents_workspace/&lt;agentId&gt;/knowledge/store.json</code>.</p>
+
+<h4>Querying</h4>
+<p>Ask the agent questions about your documents. The agent will automatically search the knowledge base when relevant. You can also use the <code>/knowledge</code> commands in Telegram.</p>
+
+<h4>Storage</h4>
+<p>All knowledge is stored as a JSON file on disk — no external database needed. Each document is chunked, embedded with cosine similarity + keyword hybrid search for retrieval.</p>
+
+<hr>
+
+<h3 id="docs-sessions">Sessions</h3>
+<p>Sessions let you maintain multiple independent conversation contexts. Each session has its own:</p>
+<ul>
+  <li>Message history (JSONL file at <code>agents_workspace/&lt;agentId&gt;/history.jsonl</code>)</li>
+  <li>User profile (extracted every 3 messages)</li>
+  <li>Memory and context</li>
+</ul>
+
+<h4>Managing Sessions</h4>
+<ul>
+  <li><strong>View sessions</strong> — See all existing sessions with the active one highlighted</li>
+  <li><strong>Switch sessions</strong> — Click "Switch" to change context</li>
+  <li><strong>Create sessions</strong> — Type a name and click "Create" for a fresh conversation</li>
+  <li><strong>History cap</strong> — Each session is capped at 500 messages. Oldest messages are trimmed first (system prompt always kept).</li>
+</ul>
+<p>You can also switch sessions from the Chat tab's session dropdown.</p>
+
+<hr>
+
+<h3 id="docs-pipelines">Pipelines</h3>
+<p>Pipelines let you chain multiple agent calls in sequence, passing outputs between steps. Useful for multi-stage processing workflows.</p>
+
+<h4>Structure</h4>
+<pre style="background:#f4f5f7;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">{
+  "name": "My Pipeline",
+  "description": "What this pipeline does",
+  "steps": [
+    {
+      "agentId": "main",
+      "prompt": "Summarize this text: {{input_text}}",
+      "outputVar": "summary"
+    },
+    {
+      "agentId": "main",
+      "prompt": "Translate to French: {{summary}}",
+      "outputVar": "translation"
+    }
+  ]
+}</pre>
+
+<h4>How It Works</h4>
+<ol>
+  <li>Each step sends its prompt to the specified agent</li>
+  <li><code>{{variable}}</code> placeholders are replaced with outputs from previous steps</li>
+  <li>The <code>outputVar</code> stores that step's result for use in subsequent steps</li>
+  <li>Pipeline outputs are returned as a JSON object with all variable names</li>
+</ol>
+
+<h4>Execution</h4>
+<p>From the Pipelines tab, click "Run" on any pipeline. You can also execute pipelines via Telegram (<code>/pipeline &lt;name&gt;</code>) or CLI (<code>kinetic-cli pipelines execute &lt;id&gt;</code>).</p>
+
+<hr>
+
+<h3 id="docs-telegram">Telegram Bot Commands</h3>
+<table>
+  <tr><th>Command</th><th>Description</th></tr>
+  <tr><td><code>/help</code></td><td>Show help message</td></tr>
+  <tr><td><code>/models</code></td><td>Show current stage configuration</td></tr>
+  <tr><td><code>/models set think &lt;provider&gt; [model]</code></td><td>Switch think stage provider at runtime</td></tr>
+  <tr><td><code>/models reset think</code></td><td>Reset to models.json default</td></tr>
+  <tr><td><code>/providers</code></td><td>List available provider endpoints</td></tr>
+  <tr><td><code>/status</code></td><td>Bot uptime, active agents, session info</td></tr>
+  <tr><td><code>/profile</code></td><td>Show what the bot knows about you</td></tr>
+  <tr><td><code>/reset</code></td><td>Clear current session history</td></tr>
+  <tr><td><code>/session</code></td><td>Show current session</td></tr>
+  <tr><td><code>/session new &lt;name&gt;</code></td><td>Start a new session</td></tr>
+  <tr><td><code>/session &lt;name&gt;</code></td><td>Switch to an existing session</td></tr>
+  <tr><td><code>/session list</code></td><td>List all sessions</td></tr>
+  <tr><td><code>/task list</code></td><td>Show scheduled tasks</td></tr>
+  <tr><td><code>/task remove &lt;id&gt;</code></td><td>Remove a scheduled task</td></tr>
+  <tr><td><code>/knowledge</code></td><td>Show knowledge base stats</td></tr>
+  <tr><td><code>/knowledge list</code></td><td>List indexed documents</td></tr>
+  <tr><td><code>/knowledge remove &lt;id&gt;</code></td><td>Remove a document</td></tr>
+</table>
+
+<hr>
+
+<h3 id="docs-cli">CLI Commands</h3>
+<table>
+  <tr><th>Command</th><th>Description</th></tr>
+  <tr><td><code>kinetic</code></td><td>Start bot + API + scheduler</td></tr>
+  <tr><td><code>kinetic-cli onboard</code></td><td>First-time setup wizard</td></tr>
+  <tr><td><code>kinetic-cli models</code></td><td>Configure providers and stage routing</td></tr>
+  <tr><td><code>kinetic-cli agents</code></td><td>Manage agent registry</td></tr>
+  <tr><td><code>kinetic-cli knowledge</code></td><td>Manage knowledge base</td></tr>
+  <tr><td><code>kinetic-cli pipelines</code></td><td>Manage pipelines</td></tr>
+</table>
+<p>If using the wrapper scripts (project root): <code>kinetic.cmd</code> and <code>kinetic-cli.cmd</code>.</p>
+
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ── Globals ──
+const API = '';
+let activeSession = 'default';
+
+// ── Tab switching ──
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-' + el.dataset.tab).classList.add('active');
+    if (el.dataset.tab === 'chat') loadSessions();  // refresh session dropdown
+    if (el.dataset.tab === 'status') loadStatus();
+    if (el.dataset.tab === 'models') loadModels();
+    if (el.dataset.tab === 'agents') loadAgents();
+    if (el.dataset.tab === 'knowledge') loadKnowledge();
+    if (el.dataset.tab === 'sessions') loadSessions();
+    if (el.dataset.tab === 'pipelines') loadPipelines();
+  });
+});
+
+// ── Toast ──
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+// ── API helpers ──
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+// ── Chat ──
+function addMsg(cls, text) {
+  const container = document.getElementById('chat-messages');
+  container.querySelector('.empty-state')?.remove();
+  const div = el('div', { class: 'msg ' + cls }, text);
+  const ts = el('span', { class: 'ts' }, new Date().toLocaleTimeString());
+  div.appendChild(ts);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = '';
+  const btn = document.getElementById('chat-send');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  addMsg('user', text);
+
+  const typing = document.getElementById('chat-messages');
+  const ind = document.createElement('div');
+  ind.className = 'typing-indicator';
+  ind.innerHTML = '<span></span><span></span><span></span>';
+  typing.appendChild(ind);
+  typing.scrollTop = typing.scrollHeight;
+
+  try {
+    const data = await api('POST', '/api/chat', { message: text, session_id: activeSession });
+    ind.remove();
+    addMsg('assistant', data.response || '(empty response)');
+  } catch (e) {
+    ind.remove();
+    addMsg('error', 'Error: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Send';
+}
+
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+document.getElementById('chat-input').focus();
+
+// ── Status ──
+async function loadStatus() {
+  const body = document.getElementById('status-body');
+  body.innerHTML = '<div class="spinner" style="margin:40px auto;display:block"></div>';
+  try {
+    const s = await api('GET', '/api/status');
+    let html = '<div class="stat-grid">';
+    const uptime = s.uptime || '?';
+    const agents = s.agents ?? '?';
+    const session = s.session || 'default';
+    html += `<div class="card stat"><div class="stat-value">${uptime}</div><div class="stat-label">Uptime</div></div>`;
+    html += `<div class="card stat"><div class="stat-value">${agents}</div><div class="stat-label">Active Agents</div></div>`;
+    html += `<div class="card stat"><div class="stat-value">${session}</div><div class="stat-label">Session</div></div>`;
+    html += '</div>';
+    if (s.config) {
+      html += '<div class="card" style="margin-top:12px"><h3 style="margin-bottom:8px;font-size:14px">Stage Config</h3><pre style="font-size:12px;white-space:pre-wrap">' + esc(s.config) + '</pre></div>';
+    }
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = '<div class="card"><p style="color:var(--danger)">Failed to load status: ' + esc(e.message) + '</p></div>';
+  }
+}
+
+// ── Models ──
+async function loadModels() {
+  try {
+    const data = await api('GET', '/api/config/models');
+    document.getElementById('models-editor').value = JSON.stringify(data, null, 2);
+    const sel = document.getElementById('provider-select');
+    sel.innerHTML = '<option value="">Select provider...</option>';
+    if (data.providers) Object.keys(data.providers).forEach(p => { sel.innerHTML += `<option value="${p}">${p}</option>`; });
+    sel.style.display = Object.keys(data.providers || {}).length ? 'inline-block' : 'none';
+  } catch (e) {
+    document.getElementById('models-editor').value = 'Error: ' + e.message;
+  }
+}
+
+async function saveModels() {
+  const btn = document.getElementById('btn-save-models');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving...';
+  try {
+    const data = JSON.parse(document.getElementById('models-editor').value);
+    await api('PUT', '/api/config/models', data);
+    toast('models.json saved. Restart to apply.', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Save';
+  }
+}
+
+async function saveAgents() {
+  const btn = document.getElementById('btn-save-agents');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving...';
+  try {
+    const data = JSON.parse(document.getElementById('agents-editor').value);
+    await api('PUT', '/api/config/agents', data);
+    toast('agents.json saved. Restart to apply.', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Save';
+  }
+}
+
+async function testProvider() {
+  const sel = document.getElementById('provider-select');
+  const name = sel.value;
+  if (!name) { toast('Select a provider first', 'error'); return; }
+  const el = document.getElementById('test-result');
+  el.textContent = 'Testing...';
+  try {
+    const r = await api('POST', '/api/config/test-provider', { providerName: name });
+    el.textContent = r.ok ? '✓ Reachable' : '✗ ' + (r.statusText || 'Failed');
+    el.style.color = r.ok ? 'var(--success)' : 'var(--danger)';
+  } catch (e) {
+    el.textContent = '✗ ' + e.message;
+    el.style.color = 'var(--danger)';
+  }
+}
+
+// ── Agents ──
+async function loadAgents() {
+  try {
+    const data = await api('GET', '/api/config/agents');
+    document.getElementById('agents-editor').value = JSON.stringify(data, null, 2);
+  } catch (e) {
+    document.getElementById('agents-editor').value = 'Error: ' + e.message;
+  }
+}
+
+// ── Knowledge ──
+async function loadKnowledge() {
+  const list = document.getElementById('kb-list');
+  list.innerHTML = '<div class="spinner" style="margin:20px auto;display:block"></div>';
+  try {
+    const data = await api('GET', '/api/knowledge');
+    if (!data.documents || !data.documents.length) {
+      list.innerHTML = '<div class="empty-state"><p>No documents indexed yet.</p></div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>Title</th><th>Source</th><th>Chunks</th><th></th></tr></thead><tbody>';
+    data.documents.forEach(d => {
+      html += `<tr><td>${esc(d.title || 'Untitled')}</td><td style="font-size:12px;color:var(--text-secondary)">${esc(d.source || '')}</td><td>${d.chunk_count ?? '?'}</td><td><button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.id}')">Delete</button></td></tr>`;
+    });
+    html += '</tbody></table>';
+    if (data.stats) html += `<div style="font-size:12px;color:var(--text-secondary);margin-top:8px">${data.stats.doc_count} documents, ${data.stats.chunk_count} chunks</div>`;
+    list.innerHTML = html;
+  } catch (e) {
+    list.innerHTML = '<div class="card"><p style="color:var(--danger)">' + esc(e.message) + '</p></div>';
+  }
+}
+
+async function injectKnowledge() {
+  const btn = document.getElementById('btn-inject');
+  const text = document.getElementById('kb-text').value.trim();
+  const url = document.getElementById('kb-url').value.trim();
+  const filePath = document.getElementById('kb-file').value.trim();
+  const title = document.getElementById('kb-title').value.trim() || undefined;
+  if (!text && !url && !filePath) { toast('Enter text, URL, or file path', 'error'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Injecting...';
+
+  const body = { title };
+  if (text) body.text = text;
+  if (url) body.url = url;
+  if (filePath) body.filePath = filePath;
+
+  try {
+    await api('POST', '/api/knowledge/inject', body);
+    toast('Document injected', 'success');
+    document.getElementById('kb-text').value = '';
+    document.getElementById('kb-url').value = '';
+    document.getElementById('kb-file').value = '';
+    loadKnowledge();
+  } catch (e) {
+    toast('Inject failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Inject';
+  }
+}
+
+async function deleteDoc(id) {
+  if (!confirm('Delete this document?')) return;
+  try {
+    await api('DELETE', '/api/knowledge/' + id);
+    toast('Deleted', 'success');
+    loadKnowledge();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ── Sessions ──
+async function loadSessions() {
+  const list = document.getElementById('sessions-list');
+  list.innerHTML = '<div class="spinner" style="margin:20px auto;display:block"></div>';
+  try {
+    const data = await api('GET', '/api/sessions');
+    const active = data.active || 'default';
+    const sessions = data.sessions || [];
+    if (!sessions.length) {
+      list.innerHTML = '<div class="empty-state"><p>No sessions yet.</p></div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>Session</th><th></th></tr></thead><tbody>';
+    sessions.forEach(s => {
+      const isActive = s === active;
+      html += `<tr><td>${esc(s)} ${isActive ? '<span class="badge badge-success">active</span>' : ''}</td><td>${isActive ? '' : `<button class="btn btn-secondary btn-sm" onclick="switchSession('${s}')">Switch</button>`}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    list.innerHTML = html;
+
+    // Update chat session selector
+    const sel = document.getElementById('chat-session-select');
+    sel.innerHTML = '';
+    sessions.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      if (s === active) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    activeSession = active;
+  } catch (e) {
+    list.innerHTML = '<div class="card"><p style="color:var(--danger)">' + esc(e.message) + '</p></div>';
+  }
+}
+
+async function switchSession(name) {
+  try {
+    await api('POST', '/api/sessions', { name });
+    toast('Switched to ' + name, 'success');
+    loadSessions();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function createSession() {
+  const input = document.getElementById('new-session-name');
+  const name = input.value.trim();
+  if (!name) { toast('Enter a session name', 'error'); return; }
+  try {
+    await api('POST', '/api/sessions', { name });
+    toast('Session created', 'success');
+    input.value = '';
+    loadSessions();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+document.getElementById('chat-session-select')?.addEventListener('change', function() {
+  switchSession(this.value);
+});
+
+// ── Pipelines ──
+async function loadPipelines() {
+  const list = document.getElementById('pipelines-list');
+  list.innerHTML = '<div class="spinner" style="margin:20px auto;display:block"></div>';
+  try {
+    const data = await api('GET', '/api/pipelines');
+    if (!data.pipelines || !data.pipelines.length) {
+      list.innerHTML = '<div class="empty-state"><p>No pipelines yet.</p></div>';
+      return;
+    }
+    let html = '<table><thead><tr><th>Name</th><th>Steps</th><th>Description</th><th></th></tr></thead><tbody>';
+    data.pipelines.forEach(p => {
+      html += `<tr><td>${esc(p.name || p.id)}</td><td>${p.steps ?? '?'}</td><td style="font-size:12px;color:var(--text-secondary)">${esc(p.description || '')}</td><td><button class="btn btn-secondary btn-sm" onclick="executePipeline('${p.id}')">Run</button> <button class="btn btn-danger btn-sm" onclick="deletePipeline('${p.id}')">Delete</button></td></tr>`;
+    });
+    html += '</tbody></table>';
+    list.innerHTML = html;
+  } catch (e) {
+    list.innerHTML = '<div class="card"><p style="color:var(--danger)">' + esc(e.message) + '</p></div>';
+  }
+}
+
+function showPipelineForm() {
+  const f = document.getElementById('pipeline-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function savePipeline() {
+  const btn = document.getElementById('btn-save-pipeline');
+  const name = document.getElementById('pl-name').value.trim();
+  const description = document.getElementById('pl-desc').value.trim();
+  const stepsRaw = document.getElementById('pl-steps').value.trim();
+  if (!name || !stepsRaw) { toast('Name and steps required', 'error'); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saving...';
+  try {
+    const steps = JSON.parse(stepsRaw);
+    await api('POST', '/api/pipelines', { name, description, steps });
+    toast('Pipeline saved', 'success');
+    document.getElementById('pl-name').value = '';
+    document.getElementById('pl-desc').value = '';
+    document.getElementById('pl-steps').value = '';
+    document.getElementById('pipeline-form').style.display = 'none';
+    loadPipelines();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = 'Save Pipeline';
+  }
+}
+
+async function executePipeline(id) {
+  try {
+    const r = await api('POST', '/api/pipelines/execute', { pipeline_id: id, variables: {} });
+    toast('Pipeline executed', 'success');
+    console.log('Pipeline output:', r.outputs);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function deletePipeline(id) {
+  if (!confirm('Delete this pipeline?')) return;
+  try {
+    await api('DELETE', '/api/pipelines/' + id);
+    toast('Deleted', 'success');
+    loadPipelines();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+// ── Helpers ──
+function el(tag, attrs, text) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+  if (text) e.textContent = text;
+  return e;
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Init ──
+loadStatus();
+loadSessions();
+</script>
+</body>
+</html>

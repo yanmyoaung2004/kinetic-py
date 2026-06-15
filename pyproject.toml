@@ -1,0 +1,50 @@
+[project]
+name = "kinetic"
+version = "2.0.0"
+description = "Autonomous agentic framework with stage-based LLM routing, RAG, multi-agent pipelines, and persistent memory"
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.1",
+    "openai>=1.68",
+    "httpx>=0.28",
+    "python-telegram-bot>=21",
+    "aiosqlite>=0.21",
+    "numpy>=2.0",
+    "psutil>=6.1",
+    "beautifulsoup4>=4.13",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "click>=8.1",
+    "pydantic>=2.10",
+    "structlog>=25.1",
+    "lxml>=5.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+
+[project.scripts]
+kinetic = "src.main:main"
+kinetic-cli = "src.cli:main"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+strict = false
+python_version = "3.12"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

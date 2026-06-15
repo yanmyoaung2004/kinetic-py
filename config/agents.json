@@ -1,0 +1,18 @@
+{
+  "settings": {
+    "defaults": {
+      "type": "library",
+      "provider": "lightning",
+      "can_delegate": false
+    }
+  },
+  "registry": [
+    {
+      "id": "main",
+      "name": "Main",
+      "soulPath": "./main/SOUL.md",
+      "provider": "lightning",
+      "can_delegate": false
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "embedding": {
+    "provider": "ollama-embedding",
+    "model": "nomic-embed-text:latest"
+  },
+  "defaults": {
+    "classify": {
+      "provider": "lightning",
+      "model": "lightning-ai/gpt-oss-120b"
+    },
+    "think": {
+      "provider": "lightning",
+      "model": "lightning-ai/gpt-oss-120b"
+    },
+    "tool_call": {
+      "provider": "lightning",
+      "model": "lightning-ai/gpt-oss-120b"
+    },
+    "answer": {
+      "provider": "lightning",
+      "model": "lightning-ai/gpt-oss-120b"
+    }
+  },
+  "providers": {
+    "lightning": {
+      "baseUrl": "https://lightning.ai/api/v1/",
+      "apiKeyEnv": "LIGHTNING_API_KEY"
+    },
+    "ollama-embedding": {
+      "baseUrl": "http://127.0.0.1:11434/v1/",
+      "apiKeyEnv": "OLLAMA_API_KEY"
+    },
+    "groq": {
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "apiKeyEnv": "GROQ_API_KEY"
+    }
+  }
+}

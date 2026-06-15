@@ -1,0 +1,48 @@
+{
+  "embedding": {
+    "provider": "ollama",
+    "model": "nomic-embed-text"
+  },
+  "defaults": {
+    "classify": {
+      "provider": "ollama",
+      "model": "gemma3:1b"
+    },
+    "think": {
+      "provider": "ollama",
+      "model": "gemma3:1b",
+      "fallbacks": [
+        {
+          "provider": "groq",
+          "model": "llama-3.1-8b-instant"
+        }
+      ]
+    },
+    "tool_call": {
+      "provider": "ollama",
+      "model": "gemma3:1b"
+    },
+    "answer": {
+      "provider": "ollama",
+      "model": "gemma3:1b"
+    }
+  },
+  "providers": {
+    "ollama": {
+      "baseUrl": "http://127.0.0.1:11434/v1",
+      "apiKeyEnv": "OLLAMA_API_KEY"
+    },
+    "openrouter": {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKeyEnv": "OPENROUTER_API_KEY"
+    },
+    "groq": {
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "apiKeyEnv": "GROQ_API_KEY"
+    },
+    "openai": {
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "OPENAI_API_KEY"
+    }
+  }
+}
