@@ -23,6 +23,7 @@ from src.agents.tools.knowledge_tool import create_index_file_tool, create_index
 from src.agents.tools.pipeline_tool import create_run_pipeline_tool
 from src.agents.tools.registry import ToolContext, ToolHandler, ToolRegistry, create_send_message_tool, create_web_search_tool
 from src.agents.tools.code_tool import create_run_code_tool
+from src.agents.tools.send_file_tool import create_send_file_tool
 from src.agents.tools.email_tool import create_read_emails_tool, create_send_email_tool
 from src.agents.tools.image_tool import create_generate_image_tool
 from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
@@ -201,6 +202,7 @@ class AgentInstance(IAgent):
         self._tools.register(create_browser_screenshot_tool())
         self._tools.register(create_browser_html_tool())
         self._tools.register(create_browser_close_tool())
+        self._tools.register(create_send_file_tool())
         # Monitors
         self._tools.register(create_create_monitor_tool(self.id))
         self._tools.register(create_list_monitors_tool(self.id))

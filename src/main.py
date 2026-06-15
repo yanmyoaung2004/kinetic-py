@@ -15,6 +15,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from src.agents.orchestrator import KinetiCDispatcher
 from src.config.loader import load_model_config, validate_endpoints
 from src.utils.file_reader import get_type_label, read_file
+from src.agents.tools.send_file_tool import get_pending_files
 
 dotenv.load_dotenv()
 
@@ -290,8 +291,18 @@ class KinetiCBot:
             response = await self.dispatcher.dispatch(self._agent_target, text, 0, chat_id)
             safe = _convert_markdown(response)
             await update.message.reply_text(safe, parse_mode="MarkdownV2")
+            await self._send_pending_files(chat_id, update)
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
+
+    async def _send_pending_files(self, chat_id: int, update: Update) -> None:
+        files = get_pending_files(chat_id)
+        from io import BytesIO
+        for f in files:
+            await update.effective_chat.send_action("upload_document")
+            bio = BytesIO(f["content"])
+            bio.name = f["filename"]
+            await update.message.reply_document(document=bio)
 
     async def handle_file(self, update: Update, context: None = None) -> None:
         if not update.message:
