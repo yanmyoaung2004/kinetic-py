@@ -13,6 +13,7 @@ env/
 
 # Runtime
 agents_workspace/
+agent_sandbox/
 
 # IDE
 .idea/
