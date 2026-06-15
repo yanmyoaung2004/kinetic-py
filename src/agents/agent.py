@@ -77,6 +77,8 @@ GLOBAL_PROTOCOLS = """
 - CRITICAL: Never tell the user about configuration or env vars. If a tool exists for the user's request, CALL IT. Do not refuse. Do not explain setup.
 - For general knowledge questions, answer from your training data first. Only use query_knowledge_base if the question is about content the user specifically saved.
 - Use tools sparingly. For simple questions, just answer directly without calling any tools.
+- IMPORTANT: Only use write_file or send_file if the user explicitly asks you to create or send a file. Do not create files "just in case" or as a side effect.
+- IMPORTANT: When the user shares URLs, do not index them unless they explicitly say "save this to my knowledge" or "index this".
 """
 
 

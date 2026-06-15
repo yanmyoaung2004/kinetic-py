@@ -98,7 +98,7 @@ def create_write_file_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "write_file",
-                "description": "Create a new file or overwrite an existing file in the sandbox directory.",
+                "description": "Create or overwrite a file in the sandbox. Only use when the user explicitly asks you to write or save a file.",
                 "parameters": {
                     "type": "object",
                     "properties": {

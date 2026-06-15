@@ -175,7 +175,7 @@ def create_index_url_tool(agent_id: str) -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "index_url",
-                "description": "Fetch a URL and index its content into the knowledge base.",
+                "description": "Fetch a URL and save its content into the knowledge base for later search. Only use when the user explicitly asks to save or index a webpage.",
                 "parameters": {
                     "type": "object",
                     "properties": {
