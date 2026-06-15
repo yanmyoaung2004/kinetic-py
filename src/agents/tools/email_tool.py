@@ -16,14 +16,20 @@ from src.types.agent import ToolDefinition
 
 logger = logging.getLogger("kinetic.tools.email")
 
+def _read_env(name: str, default: str = "") -> str:
+    import dotenv
+    dotenv.load_dotenv()
+    return os.environ.get(name, default)
+
+
 def _get_cfg():
     return {
-        "imap_host": os.environ.get("EMAIL_IMAP_SERVER", ""),
-        "imap_port": int(os.environ.get("EMAIL_IMAP_PORT", "993")),
-        "smtp_host": os.environ.get("EMAIL_SMTP_SERVER", ""),
-        "smtp_port": int(os.environ.get("EMAIL_SMTP_PORT", "587")),
-        "addr": os.environ.get("EMAIL_ADDRESS", ""),
-        "pass": os.environ.get("EMAIL_PASSWORD", ""),
+        "imap_host": _read_env("EMAIL_IMAP_SERVER"),
+        "imap_port": int(_read_env("EMAIL_IMAP_PORT", "993")),
+        "smtp_host": _read_env("EMAIL_SMTP_SERVER"),
+        "smtp_port": int(_read_env("EMAIL_SMTP_PORT", "587")),
+        "addr": _read_env("EMAIL_ADDRESS"),
+        "pass": _read_env("EMAIL_PASSWORD"),
     }
 
 
