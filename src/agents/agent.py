@@ -448,7 +448,7 @@ Conversation:
                 "source": "memory",
                 "text": text,
                 "embedding": emb,
-                "metadata": {"type": "memory", "session": self._memory.get_active_session(), "timestamp": ts},
+                "metadata": {"type": "memory", "session": self._memory._session_id, "timestamp": ts},
             }])
             logger.info("[MEMORY] Archived at %s", ts)
         except Exception as exc:

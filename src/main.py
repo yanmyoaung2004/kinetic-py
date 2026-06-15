@@ -297,12 +297,9 @@ class KinetiCBot:
 
     async def _send_pending_files(self, chat_id: int, update: Update) -> None:
         files = get_pending_files(chat_id)
-        from io import BytesIO
         for f in files:
             await update.effective_chat.send_action("upload_document")
-            bio = BytesIO(f["content"])
-            bio.name = f["filename"]
-            await update.message.reply_document(document=bio)
+            await update.message.reply_document(document=(f["filename"], f["content"]))
 
     async def handle_file(self, update: Update, context: None = None) -> None:
         if not update.message:
