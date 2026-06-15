@@ -46,6 +46,7 @@ class SearchOptions:
     diversify: bool = False
     diversity_lambda: float = 0.7
     doc_ids: list[str] | None = None
+    metadata_filter: dict[str, str] | None = None
 
 
 @dataclass
@@ -208,6 +209,14 @@ async def search_similar(
             metadata=_safe_json(r["metadata"]),
             keywords=_safe_json(r["keywords"]),
         ))
+
+    # Apply metadata filter in Python (avoids SQLite json_extract quirks)
+    if opts.metadata_filter:
+        filtered = []
+        for ch in chunks:
+            if all(ch.metadata.get(k) == v for k, v in opts.metadata_filter.items()):
+                filtered.append(ch)
+        chunks = filtered
 
     # Semantic scores
     scored: list[SearchResult] = []

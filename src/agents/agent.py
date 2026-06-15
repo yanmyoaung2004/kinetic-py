@@ -22,12 +22,28 @@ from src.agents.tools.file_tools import (
 from src.agents.tools.knowledge_tool import create_index_file_tool, create_index_url_tool, create_knowledge_stats_tool, create_query_knowledge_tool
 from src.agents.tools.pipeline_tool import create_run_pipeline_tool
 from src.agents.tools.registry import ToolContext, ToolHandler, ToolRegistry, create_send_message_tool, create_web_search_tool
+from src.agents.tools.code_tool import create_run_code_tool
+from src.agents.tools.email_tool import create_read_emails_tool, create_send_email_tool
+from src.agents.tools.image_tool import create_generate_image_tool
+from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
+from src.agents.tools.browser import (
+    create_browser_click_tool,
+    create_browser_close_tool,
+    create_browser_extract_tool,
+    create_browser_fill_tool,
+    create_browser_html_tool,
+    create_browser_navigate_tool,
+    create_browser_screenshot_tool,
+)
 from src.agents.tools.schedule_task import create_get_time_tool, create_schedule_task_tool
 from src.agents.tools.system_tools import create_download_url_tool, create_get_system_info_tool, create_read_env_var_tool
 from src.providers.provider import UnifiedProvider, UnifiedProviderConfig, call_with_fallback
 from src.types.agent import AgentCard, IAgent, ToolDefinition
 from src.types.llm import ChatMessage, LLMProvider
 from src.types.model_config import StageModelConfig
+from src.agents.rag.embedding import get_embedding
+from src.agents.rag.vector_store import SearchOptions, add_chunks, search_similar
+from src.agents.tools.knowledge_tool import ensure_embedding
 
 logger = logging.getLogger("kinetic.agent")
 
@@ -177,6 +193,24 @@ class AgentInstance(IAgent):
         )
         self._tools.register(create_github_index_tool(self.id))
         self._tools.register(create_web_scraper_tool(self.id))
+        # Browser tools
+        self._tools.register(create_browser_navigate_tool())
+        self._tools.register(create_browser_click_tool())
+        self._tools.register(create_browser_fill_tool())
+        self._tools.register(create_browser_extract_tool())
+        self._tools.register(create_browser_screenshot_tool())
+        self._tools.register(create_browser_html_tool())
+        self._tools.register(create_browser_close_tool())
+        # Monitors
+        self._tools.register(create_create_monitor_tool(self.id))
+        self._tools.register(create_list_monitors_tool(self.id))
+        # Email
+        self._tools.register(create_read_emails_tool())
+        self._tools.register(create_send_email_tool())
+        # Code execution
+        self._tools.register(create_run_code_tool())
+        # Image generation
+        self._tools.register(create_generate_image_tool())
 
         logger.info("[SYSTEM] Initialized: %s [%s] tools=%d", self.id, self.config.type, len(self._tools.get_definitions()))
 
@@ -216,6 +250,11 @@ class AgentInstance(IAgent):
                     return response
             except Exception:
                 pass
+
+        # Stage 1.5: Recall relevant past memories
+        recall = await self._recall_memories(message)
+        if recall:
+            self._memory.append(ChatMessage(role="system", content=f"[CONTEXT FROM PAST CONVERSATIONS]\n{recall}"))
 
         # Stage 2: Think loop
         response = await self._run_think_loop(current_depth)
@@ -389,10 +428,49 @@ Conversation:
                 ]),
             )
             if response.content:
+                await self._archive_memory(response.content)
                 summary = build_summary_message(response.content)
                 self._memory.apply_compression(summary)
         except Exception:
             pass
+
+    async def _archive_memory(self, text: str) -> None:
+        try:
+            ensure_embedding()
+            emb = await get_embedding(text)
+            doc_id = f"mem_{int(__import__('time').time() * 1000)}"
+            ts = __import__("datetime").datetime.now().isoformat()
+            await add_chunks(self.id, [{
+                "doc_id": doc_id,
+                "title": f"Memory {ts[:10]}",
+                "source": "memory",
+                "text": text,
+                "embedding": emb,
+                "metadata": {"type": "memory", "session": self._memory.get_active_session(), "timestamp": ts},
+            }])
+            logger.info("[MEMORY] Archived at %s", ts)
+        except Exception as exc:
+            logger.warning("[MEMORY] Archive failed: %s", exc)
+
+    async def _recall_memories(self, message: str) -> str:
+        try:
+            ensure_embedding()
+            emb = await get_embedding(message)
+            results = await search_similar(
+                self.id, emb, message,
+                SearchOptions(top_k=5, metadata_filter={"type": "memory"}),
+            )
+            if not results:
+                return ""
+            parts = []
+            for r in results:
+                ts = r.chunk.metadata.get("timestamp", "")
+                prefix = f"[{ts[:10]}]" if ts else ""
+                parts.append(f"{prefix} {r.chunk.text}")
+            return "\n\n".join(parts)
+        except Exception as exc:
+            logger.warning("[MEMORY] Recall failed: %s", exc)
+            return ""
 
     async def _execute_spawn_specialist(self, args: dict, current_depth: int = 0) -> str:
         try:

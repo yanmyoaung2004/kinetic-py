@@ -58,7 +58,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .typing-indicator span:nth-child(3) { animation-delay: .32s; }
 @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 .chat-input-area { padding: 12px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; gap: 8px; align-items: flex-end; }
-.chat-input-area textarea { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); resize: none; font-family: inherit; font-size: 14px; outline: none; line-height: 1.4; min-height: 42px; max-height: 120px; }
 .chat-input-area textarea:focus { border-color: var(--accent); }
 .btn { padding: 8px 20px; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
 .btn-primary { background: var(--accent); color: #fff; }
@@ -202,7 +201,11 @@ tr:hover td { background: var(--bg); }
       </div>
       <div class="chat-messages" id="chat-messages"><div class="empty-state"><p>Send a message to start chatting.</p></div></div>
       <div class="chat-input-area">
-        <textarea id="chat-input" placeholder="Type a message... (Enter to send, Shift+Enter for new line)" rows="1" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+        <label style="display:flex;align-items:stretch;gap:8px;flex:1">
+          <textarea id="chat-input" placeholder="Type a message... (Enter to send, Shift+Enter for new line)" rows="1" oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,120)+'px'" style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius);resize:none;font-family:inherit;font-size:14px;outline:none;line-height:1.4;min-height:42px;max-height:120px"></textarea>
+        </label>
+        <input type="file" id="chat-file" style="display:none" onchange="uploadFile()">
+        <button class="btn btn-secondary" onclick="document.getElementById('chat-file').click()" title="Upload file">📎</button>
         <button class="btn btn-primary" id="chat-send" onclick="sendChat()" title="Send message">Send</button>
       </div>
     </div>
@@ -532,6 +535,133 @@ tr:hover td { background: var(--bg); }
 
 <hr>
 
+<hr>
+
+<h3 id="docs-memory">Long-Term Memory</h3>
+<p>The system now stores past conversation summaries permanently in the vector store. When you talk to the agent, it recalls relevant memories from days or weeks ago and injects them as context.</p>
+<ul>
+  <li><strong>Automatic archival</strong> — When conversation history is compressed (default: every 60+ messages), the compressed summary is embedded and stored in the knowledge base with <code>metadata.type = "memory"</code></li>
+  <li><strong>Automatic recall</strong> — Before each response, the agent searches the vector store for <code>type: "memory"</code> chunks similar to your current message. Relevant memories are injected as system context</li>
+  <li><strong>Persistent</strong> — Memories survive across sessions and restarts. They are stored in the same SQLite knowledge base as indexed documents</li>
+  <li><strong>No setup required</strong> — Works automatically if you have an embedding provider configured in models.json</li>
+</ul>
+
+<hr>
+
+<h3 id="docs-file-upload">File Upload</h3>
+<p>Upload files directly in the Chat tab. The agent reads them and responds.</p>
+<ul>
+  <li><strong>Supported formats</strong>: <code>.txt</code>, <code>.md</code>, <code>.py</code>, <code>.json</code>, <code>.csv</code>, <code>.pdf</code>, code files, images (noted by name)</li>
+  <li><strong>How to use</strong>: Click the paperclip icon (<strong>📎</strong>) next to the chat input, select a file, optionally type a message, and send</li>
+  <li><strong>PDF support</strong>: Requires <code>pip install PyMuPDF</code> for text extraction</li>
+  <li><strong>Files are saved</strong> to <code>agent_sandbox/</code> for the agent to access</li>
+  <li>Content is truncated at 50,000 characters for large files</li>
+</ul>
+
+<hr>
+
+<h3 id="docs-browser">Browser Automation</h3>
+<p>The agent can control a headless web browser using Playwright.</p>
+<ul>
+  <li><strong>Tools available</strong>:
+    <ul>
+      <li><code>browser_navigate(url)</code> — Open a URL</li>
+      <li><code>browser_click(selector)</code> — Click an element by CSS selector</li>
+      <li><code>browser_fill(selector, value)</code> — Type into an input field</li>
+      <li><code>browser_extract(selector?)</code> — Get text from the page (specific or all)</li>
+      <li><code>browser_screenshot()</code> — Take a full-page screenshot (base64)</li>
+      <li><code>browser_html()</code> — Get the raw HTML</li>
+      <li><code>browser_close()</code> — Close the browser session</li>
+    </ul>
+  </li>
+  <li><strong>Session</strong>: A single browser session is shared within a conversation. Navigate, click, fill, extract — all on the same page</li>
+  <li><strong>Setup</strong>: <code>pip install playwright &amp;&amp; playwright install chromium</code></li>
+  <li>Runs headless by default. No visible browser window.</li>
+</ul>
+
+<hr>
+
+<h3 id="docs-email">Email Tools</h3>
+<p>Read and send emails through the agent.</p>
+<ul>
+  <li><strong>Tools</strong>:
+    <ul>
+      <li><code>read_emails(folder, max, since_days)</code> — Fetch recent emails via IMAP</li>
+      <li><code>send_email(to, subject, body)</code> — Send an email via SMTP</li>
+    </ul>
+  </li>
+  <li><strong>Configuration</strong> — Set these env vars in <code>.env</code>:
+    <pre style="background:#f4f5f7;padding:8px;border-radius:4px;font-size:12px">EMAIL_IMAP_SERVER=imap.gmail.com
+EMAIL_IMAP_PORT=993
+EMAIL_SMTP_SERVER=smtp.gmail.com
+EMAIL_SMTP_PORT=587
+EMAIL_ADDRESS=your@email.com
+EMAIL_PASSWORD=your_app_password</pre>
+  </li>
+  <li><strong>Gmail users</strong>: Use an App Password (not your regular password). Enable 2FA then generate an app-specific password.</li>
+</ul>
+
+<hr>
+
+<h3 id="docs-code">Code Execution</h3>
+<p>The agent can execute Python code in a sandboxed environment.</p>
+<ul>
+  <li><strong>Tool:</strong> <code>run_code(code, language)</code> — Runs Python code in a subprocess with a 30-second timeout</li>
+  <li><strong>Safety:</strong> Dangerous patterns (<code>eval</code>, <code>exec</code>, <code>open</code>, <code>__import__</code>, <code>__builtins__</code>) are stripped automatically</li>
+  <li><strong>Output:</strong> Captures stdout and stderr. Returns "(no output)" if both are empty</li>
+  <li><strong>Use cases:</strong> Calculations, data analysis, file processing, automation scripts</li>
+  <li>Only Python is supported currently.</li>
+</ul>
+
+<hr>
+
+<h3 id="docs-image">Image Generation</h3>
+<p>The agent can generate images from text descriptions.</p>
+<ul>
+  <li><strong>Tool:</strong> <code>generate_image(prompt, size, n)</code> — Creates AI-generated images</li>
+  <li><strong>Configuration:</strong> Add an <code>"image"</code> section to <code>config/models.json</code>:
+    <pre style="background:#f4f5f7;padding:8px;border-radius:4px;font-size:12px">"image": {
+  "provider": "openai",
+  "model": "dall-e-3"
+}</pre>
+  </li>
+  <li><strong>Parameters:</strong> <code>size</code> can be <code>1024x1024</code>, <code>1792x1024</code>, or <code>1024x1792</code>. <code>n</code> (number of images, max 4)</li>
+  <li>Works with any OpenAI-compatible image generation endpoint (DALL-E, Stable Diffusion API, etc.)</li>
+</ul>
+
+<hr>
+
+<h3 id="docs-monitors">Proactive Agents (Monitors)</h3>
+<p>Create background monitors that check conditions periodically and notify you when triggered.</p>
+<ul>
+  <li><strong>Tool:</strong> <code>create_monitor(description, check_prompt, interval_minutes)</code>
+    <ul>
+      <li><code>description</code>: A name for this monitor</li>
+      <li><code>check_prompt</code>: The question to ask the agent each time (be specific)</li>
+      <li><code>interval_minutes</code>: How often to check (minimum 15)</li>
+    </ul>
+  </li>
+  <li><strong>Tool:</strong> <code>list_monitors()</code> — See all active monitors and their next check time</li>
+  <li><strong>How notifications work:</strong>
+    <ol>
+      <li>The scheduler runs the check prompt every N minutes</li>
+      <li>The agent responds with whether the condition is met</li>
+      <li>If the response contains keywords like "CONDITION_MET" or "ALERT" or "YES", you get a Telegram notification</li>
+    </ol>
+  </li>
+  <li><strong>Examples:</strong>
+    <ul>
+      <li>"Check if Apple stock is below $200 every 6 hours"</li>
+      <li>"Check for new emails from boss every 30 minutes"</li>
+      <li>"Check if it's raining in Tokyo every hour"</li>
+    </ul>
+  </li>
+  <li>Monitors are stored alongside regular tasks in <code>agents_workspace/&lt;agentId&gt;/tasks.json</code></li>
+  <li>Use <code>/task remove &lt;id&gt;</code> to delete a monitor</li>
+</ul>
+
+<hr>
+
 <h3 id="docs-telegram">Telegram Bot Commands</h3>
 <table>
   <tr><th>Command</th><th>Description</th></tr>
@@ -659,6 +789,44 @@ async function sendChat() {
   }
   btn.disabled = false;
   btn.textContent = 'Send';
+}
+
+async function uploadFile() {
+  const input = document.getElementById('chat-file');
+  const file = input.files[0];
+  if (!file) return;
+  const text = document.getElementById('chat-input').value.trim();
+  document.getElementById('chat-input').value = '';
+  document.getElementById('chat-input').style.height = '';
+  const btn = document.getElementById('chat-send');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  addMsg('user', `[Uploading: ${file.name}]` + (text ? '\n' + text : ''));
+
+  const typing = document.getElementById('chat-messages');
+  const ind = document.createElement('div');
+  ind.className = 'typing-indicator';
+  ind.innerHTML = '<span></span><span></span><span></span>';
+  typing.appendChild(ind);
+  typing.scrollTop = typing.scrollHeight;
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('message', text);
+    const r = await fetch('/api/chat/upload', { method: 'POST', body: fd });
+    const data = await r.json();
+    ind.remove();
+    if (!r.ok) { addMsg('error', 'Upload error: ' + (data.error || r.statusText)); }
+    else { addMsg('assistant', data.response || '(empty response)'); }
+  } catch (e) {
+    ind.remove();
+    addMsg('error', 'Upload failed: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Send';
+  input.value = '';
 }
 
 document.getElementById('chat-input').addEventListener('keydown', e => {

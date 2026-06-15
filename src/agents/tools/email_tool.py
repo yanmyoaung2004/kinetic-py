@@ -1,0 +1,136 @@
+"""Email tools — IMAP read + SMTP send."""
+
+from __future__ import annotations
+
+import imaplib
+import logging
+import os
+import smtplib
+import time as time_module
+from email.message import EmailMessage
+from email.parser import BytesParser
+from typing import Any
+
+from src.agents.tools.registry import ToolContext, ToolHandler
+from src.types.agent import ToolDefinition
+
+logger = logging.getLogger("kinetic.tools.email")
+
+_imap_host = os.environ.get("EMAIL_IMAP_SERVER", "")
+_imap_port = int(os.environ.get("EMAIL_IMAP_PORT", "993"))
+_smtp_host = os.environ.get("EMAIL_SMTP_SERVER", "")
+_smtp_port = int(os.environ.get("EMAIL_SMTP_PORT", "587"))
+_email_addr = os.environ.get("EMAIL_ADDRESS", "")
+_email_pass = os.environ.get("EMAIL_PASSWORD", "")
+
+
+def _check_config() -> str | None:
+    if not _email_addr or not _email_pass:
+        return "Email not configured. Set EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_IMAP_SERVER in .env"
+    return None
+
+
+async def _read_emails(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    err = _check_config()
+    if err:
+        return f"ERROR: {err}"
+    folder = args.get("folder", "INBOX")
+    max_emails = min(args.get("max", 10), 50)
+    since_days = args.get("since_days", 1)
+    try:
+        mail = imaplib.IMAP4_SSL(_imap_host, _imap_port)
+        mail.login(_email_addr, _email_pass)
+        mail.select(folder)
+        date_since = (time_module.strftime("%d-%b-%Y", time_module.gmtime(time_module.time() - since_days * 86400)))
+        status, data = mail.search(None, f'(SINCE {date_since})')
+        if status != "OK":
+            mail.logout()
+            return f"No emails found in {folder}"
+        ids = data[0].split()[-max_emails:]
+        results = []
+        for eid in ids:
+            status, msg_data = mail.fetch(eid, "(RFC822)")
+            if status != "OK":
+                continue
+            msg = BytesParser().parsebytes(msg_data[0][1])
+            results.append({
+                "from": msg.get("From", ""),
+                "subject": msg.get("Subject", ""),
+                "date": msg.get("Date", ""),
+            })
+        mail.logout()
+        if not results:
+            return f"No emails found in {folder} since {date_since}"
+        lines = [f"Recent emails from {folder}:"]
+        for r in results:
+            lines.append(f"  • From: {r['from']}")
+            lines.append(f"    Subject: {r['subject']}")
+            lines.append(f"    Date: {r['date']}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"ERROR reading emails: {e}"
+
+
+async def _send_email(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    err = _check_config()
+    if err:
+        return f"ERROR: {err}"
+    to_addr = args.get("to", "")
+    subject = args.get("subject", "")
+    body = args.get("body", "")
+    if not to_addr or not subject:
+        return "ERROR: 'to' and 'subject' are required."
+    try:
+        msg = EmailMessage()
+        msg.set_content(body)
+        msg["Subject"] = subject
+        msg["From"] = _email_addr
+        msg["To"] = to_addr
+        with smtplib.SMTP(_smtp_host, _smtp_port) as s:
+            s.starttls()
+            s.login(_email_addr, _email_pass)
+            s.send_message(msg)
+        return f"Email sent to {to_addr}: {subject}"
+    except Exception as e:
+        return f"ERROR sending email: {e}"
+
+
+def create_read_emails_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "read_emails",
+                "description": "Read recent emails from your inbox. Requires EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_IMAP_SERVER in .env.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "folder": {"type": "string", "description": "Mail folder (default: INBOX)"},
+                        "max": {"type": "number", "description": "Max emails to fetch (default: 10, max: 50)"},
+                        "since_days": {"type": "number", "description": "Look back days (default: 1)"},
+                    },
+                },
+            },
+        ),
+        execute=_read_emails,
+    )
+
+
+def create_send_email_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "send_email",
+                "description": "Send an email. Requires EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_SMTP_SERVER in .env.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "to": {"type": "string", "description": "Recipient email address"},
+                        "subject": {"type": "string", "description": "Email subject"},
+                        "body": {"type": "string", "description": "Email body text"},
+                    },
+                    "required": ["to", "subject"],
+                },
+            },
+        ),
+        execute=_send_email,
+    )

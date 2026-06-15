@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -41,6 +41,40 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
             dispatcher.set_session(session_id)
         response = await dispatcher.dispatch(agent_target, message, 0)
         return JSONResponse({"response": response})
+
+    @app.post("/api/chat/upload")
+    async def chat_upload(file: UploadFile | None = None, message: str = Form("")) -> JSONResponse:
+        from src.utils.file_reader import get_type_label, read_file
+
+        sandbox = Path("agent_sandbox")
+        sandbox.mkdir(exist_ok=True)
+
+        if not file or not file.filename:
+            if not message:
+                return JSONResponse({"error": "No file or message provided"}, status_code=400)
+            response = await dispatcher.dispatch(agent_target, message, 0)
+            return JSONResponse({"response": response})
+
+        file_path = sandbox / file.filename
+        content_bytes = await file.read()
+        file_path.write_bytes(content_bytes)
+
+        result = read_file(file_path)
+        if result.get("error"):
+            return JSONResponse({"error": result["error"]}, status_code=400)
+
+        label = get_type_label(result)
+        file_info = f"[Uploaded {label}: {result['name']} ({result.get('size', 0)} bytes)]\n\n"
+        file_content = result.get("content", "")
+        if len(file_content) > 50000:
+            file_content = file_content[:50000] + "\n\n[...content truncated at 50000 chars]"
+
+        full_message = f"{file_info}{file_content}"
+        if message.strip():
+            full_message += f"\n\nUser message: {message}"
+
+        response = await dispatcher.dispatch(agent_target, full_message, 0)
+        return JSONResponse({"response": response, "file": result["name"]})
 
     @app.get("/api/sessions")
     @app.post("/api/sessions")

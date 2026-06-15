@@ -331,14 +331,27 @@ class KinetiCBot:
                 for item in overdue:
                     agent_id = item["agent_id"]
                     task = item["task"]
-                    logger.info("[SCHEDULER] Running task '%s' for %s", task.get("description"), agent_id)
+                    task_type = task.get("type", "once")
+                    desc = task.get("description", "")
+                    logger.info("[SCHEDULER] Running task '%s' for %s", desc, agent_id)
                     try:
-                        response = await self.dispatcher.dispatch(agent_id, f"[REMINDER] {task.get('description', '')}")
-                        mark_task_run(agent_id, task["id"])
-                        chat_id = task.get("chat_id")
-                        if chat_id and self._app:
-                            safe = _convert_markdown(response or "")
-                            await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="MarkdownV2")
+                        if task_type == "monitor":
+                            check_prompt = task.get("query", desc)
+                            response = await self.dispatcher.dispatch(agent_id, f"[MONITOR] {check_prompt}")
+                            mark_task_run(agent_id, task["id"])
+                            resp_upper = (response or "").upper()
+                            if any(kw in resp_upper for kw in ("CONDITION_MET", "ALERT", "YES", "CONDITION MET")):
+                                chat_id = task.get("chat_id")
+                                if chat_id and self._app:
+                                    safe = _convert_markdown(f"[MONITOR] Triggered: {desc}\n\n{response[:500]}")
+                                    await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="MarkdownV2")
+                        else:
+                            response = await self.dispatcher.dispatch(agent_id, f"[REMINDER] {desc}")
+                            mark_task_run(agent_id, task["id"])
+                            chat_id = task.get("chat_id")
+                            if chat_id and self._app:
+                                safe = _convert_markdown(response or "")
+                                await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="MarkdownV2")
                     except Exception as e:
                         logger.warning("[SCHEDULER] Task '%s' failed: %s", task.get("id"), e)
                         mark_task_run(agent_id, task["id"])
