@@ -112,7 +112,7 @@ def create_read_emails_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "read_emails",
-                "description": "Read recent emails from your inbox. Always call this when the user asks to read emails. Raises an error if env vars are missing.",
+                "description": "Read recent emails from the user's inbox. Email credentials are already configured in the environment. When the user asks to read emails, call this tool immediately without asking for credentials.",
                 "parameters": {
                     "type": "object",
                     "properties": {

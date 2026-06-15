@@ -230,6 +230,13 @@ class AgentInstance(IAgent):
             self._current_chat_id = chat_id
         self._memory.append(ChatMessage(role="user", content=message))
 
+        # Pre-process: auto-call email tools if message mentions email
+        email_keywords = ("email", "inbox", "mail", "gmail", "outlook")
+        if any(kw in message.lower() for kw in email_keywords):
+            email_result = await self._auto_email(message)
+            if email_result:
+                return email_result
+
         # Stage 1: Classify (multi mode)
         if self._mode == "multi" and self._classify_providers:
             prompt = f'Classify this user message into one category: "question", "command", "chitchat", "task".\n\nMessage: {message}\n\nRespond with ONLY the category word.'
@@ -299,6 +306,35 @@ class AgentInstance(IAgent):
         asyncio.create_task(_background())
 
         return response
+
+    async def _auto_email(self, message: str) -> str | None:
+        """Auto-fetch emails and inject as context, replacing any stale results."""
+        if "send" in message.lower() or "email to" in message.lower():
+            return None
+        try:
+            from src.agents.tools.email_tool import _check_config, _read_emails
+            from src.agents.tools.registry import ToolContext
+            err = _check_config()
+            if err:
+                return None
+            ctx = ToolContext(chat_id=self._current_chat_id)
+            result = await _read_emails({"folder": "INBOX", "max": 8, "since_days": 3}, ctx)
+            if result.startswith("ERROR"):
+                return None
+            # Replace any existing email context block
+            msgs = self._memory.get_messages()
+            new_block = f"[EMAIL RESULTS]\n{result}"
+            for i in range(len(msgs) - 1, -1, -1):
+                if msgs[i].role == "system" and msgs[i].content.startswith("[EMAIL RESULTS]"):
+                    msgs[i].content = new_block
+                    logger.info("[AUTO_EMAIL] Updated email context")
+                    return None
+            self._memory.append(ChatMessage(role="system", content=new_block))
+            logger.info("[AUTO_EMAIL] Injected email context for: %s", message[:60])
+            return None
+        except Exception as e:
+            logger.warning("[AUTO_EMAIL] Failed: %s", e)
+            return None
 
     async def _run_think_loop(self, current_depth: int) -> str:
         tools = self._tools.get_definitions()
