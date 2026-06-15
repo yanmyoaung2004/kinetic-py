@@ -16,16 +16,20 @@ from src.types.agent import ToolDefinition
 
 logger = logging.getLogger("kinetic.tools.email")
 
-_imap_host = os.environ.get("EMAIL_IMAP_SERVER", "")
-_imap_port = int(os.environ.get("EMAIL_IMAP_PORT", "993"))
-_smtp_host = os.environ.get("EMAIL_SMTP_SERVER", "")
-_smtp_port = int(os.environ.get("EMAIL_SMTP_PORT", "587"))
-_email_addr = os.environ.get("EMAIL_ADDRESS", "")
-_email_pass = os.environ.get("EMAIL_PASSWORD", "")
+def _get_cfg():
+    return {
+        "imap_host": os.environ.get("EMAIL_IMAP_SERVER", ""),
+        "imap_port": int(os.environ.get("EMAIL_IMAP_PORT", "993")),
+        "smtp_host": os.environ.get("EMAIL_SMTP_SERVER", ""),
+        "smtp_port": int(os.environ.get("EMAIL_SMTP_PORT", "587")),
+        "addr": os.environ.get("EMAIL_ADDRESS", ""),
+        "pass": os.environ.get("EMAIL_PASSWORD", ""),
+    }
 
 
 def _check_config() -> str | None:
-    if not _email_addr or not _email_pass:
+    cfg = _get_cfg()
+    if not cfg["addr"] or not cfg["pass"]:
         return "Email not configured. Set EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_IMAP_SERVER in .env"
     return None
 
@@ -38,8 +42,9 @@ async def _read_emails(args: dict[str, Any], ctx: ToolContext | None) -> str:
     max_emails = min(args.get("max", 10), 50)
     since_days = args.get("since_days", 1)
     try:
-        mail = imaplib.IMAP4_SSL(_imap_host, _imap_port)
-        mail.login(_email_addr, _email_pass)
+        cfg = _get_cfg()
+        mail = imaplib.IMAP4_SSL(cfg["imap_host"], cfg["imap_port"])
+        mail.login(cfg["addr"], cfg["pass"])
         mail.select(folder)
         date_since = (time_module.strftime("%d-%b-%Y", time_module.gmtime(time_module.time() - since_days * 86400)))
         status, data = mail.search(None, f'(SINCE {date_since})')
@@ -81,14 +86,15 @@ async def _send_email(args: dict[str, Any], ctx: ToolContext | None) -> str:
     if not to_addr or not subject:
         return "ERROR: 'to' and 'subject' are required."
     try:
+        cfg = _get_cfg()
         msg = EmailMessage()
         msg.set_content(body)
         msg["Subject"] = subject
-        msg["From"] = _email_addr
+        msg["From"] = cfg["addr"]
         msg["To"] = to_addr
-        with smtplib.SMTP(_smtp_host, _smtp_port) as s:
+        with smtplib.SMTP(cfg["smtp_host"], cfg["smtp_port"]) as s:
             s.starttls()
-            s.login(_email_addr, _email_pass)
+            s.login(cfg["addr"], cfg["pass"])
             s.send_message(msg)
         return f"Email sent to {to_addr}: {subject}"
     except Exception as e:
