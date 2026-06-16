@@ -295,7 +295,9 @@ class KinetiCBot:
         await update.effective_chat.send_action("typing")
         try:
             response = await self.dispatcher.dispatch(self._agent_target, text, 0, chat_id)
-            safe = _convert_markdown(response)
+            safe = _convert_markdown(response or "(no response)")
+            if len(safe) > 4000:
+                safe = safe[:4000] + "\n\n... (truncated)"
             await update.message.reply_text(safe, parse_mode="HTML")
             await self._send_pending_files(chat_id, update)
         except Exception as e:

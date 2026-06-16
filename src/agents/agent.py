@@ -340,6 +340,19 @@ class AgentInstance(IAgent):
             result = await _read_emails(params, ctx)
             if result.startswith("ERROR"):
                 return None
+            # Truncate if too long
+            if len(result) > 3500:
+                lines = result.split("\n")
+                # Keep header + first N emails
+                kept = [lines[0]]
+                char_count = len(lines[0])
+                for line in lines[1:]:
+                    if char_count + len(line) + 1 > 3500:
+                        kept.append("... (truncated)")
+                        break
+                    kept.append(line)
+                    char_count += len(line) + 1
+                result = "\n".join(kept)
             # Replace any existing email context block
             msgs = self._memory.get_messages()
             new_block = f"[EMAIL RESULTS]\n{result}"
