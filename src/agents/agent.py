@@ -323,7 +323,7 @@ class AgentInstance(IAgent):
             ctx = ToolContext(chat_id=self._current_chat_id)
 
             # Parse filter hints from user message
-            params = {"folder": "INBOX", "max": 8, "since_days": 3}
+            params = {"folder": "INBOX", "max": 5, "since_days": 1}
             import re as _re
             from_match = _re.search(r'from\s+([\w.@+-]+)', message.lower())
             if from_match:
