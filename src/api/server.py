@@ -78,9 +78,10 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
 
     @app.get("/api/sessions")
     @app.post("/api/sessions")
-    async def sessions(request: Request = None) -> JSONResponse:
+    async def sessions(request: Request | None = None) -> JSONResponse:
         from src.agents.memory import AgentMemory
 
+        assert request is not None
         if request.method == "GET":
             sessions_list = AgentMemory.list_sessions(agent_target, "agents_workspace")
             return JSONResponse({"sessions": sessions_list, "active": dispatcher.get_active_session()})
@@ -92,13 +93,15 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
 
     @app.get("/api/status")
     async def status() -> JSONResponse:
-        return JSONResponse({
-            "uptime": dispatcher.get_uptime(),
-            "agents": dispatcher.get_agent_count(),
-            "target": agent_target,
-            "session": dispatcher.get_active_session(),
-            "config": dispatcher.get_active_config(),
-        })
+        return JSONResponse(
+            {
+                "uptime": dispatcher.get_uptime(),
+                "agents": dispatcher.get_agent_count(),
+                "target": agent_target,
+                "session": dispatcher.get_active_session(),
+                "config": dispatcher.get_active_config(),
+            }
+        )
 
     # ── Knowledge routes ──
 
@@ -153,14 +156,16 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
         chunks_data = []
         for seg in segments:
             emb = await get_embedding(seg)
-            chunks_data.append({
-                "doc_id": f"doc_{int(__import__('time').time() * 1000)}",
-                "title": title,
-                "source": source,
-                "text": seg,
-                "embedding": emb,
-                "metadata": {},
-            })
+            chunks_data.append(
+                {
+                    "doc_id": f"doc_{int(__import__('time').time() * 1000)}",
+                    "title": title,
+                    "source": source,
+                    "text": seg,
+                    "embedding": emb,
+                    "metadata": {},
+                }
+            )
         count = await add_chunks(agent_target, chunks_data)
         return JSONResponse({"ok": True, "inserted": count, "title": title, "segments": len(segments)})
 
@@ -184,12 +189,20 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
                 diversify=True,
             )
             results = await search_similar(agent_target, query_emb, query, opts)
-            return JSONResponse({
-                "results": [
-                    {"text": r.chunk.text, "title": r.chunk.title, "source": r.chunk.source, "score": r.score, "docId": r.chunk.doc_id}
-                    for r in results
-                ],
-            })
+            return JSONResponse(
+                {
+                    "results": [
+                        {
+                            "text": r.chunk.text,
+                            "title": r.chunk.title,
+                            "source": r.chunk.source,
+                            "score": r.score,
+                            "docId": r.chunk.doc_id,
+                        }
+                        for r in results
+                    ],
+                }
+            )
         except Exception as e:
             return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -206,7 +219,14 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
     async def pipelines_list() -> JSONResponse:
         from src.agents.tasks.pipeline import list_pipelines
 
-        return JSONResponse({"pipelines": [{"id": p.id, "name": p.name, "steps": len(p.steps), "description": p.description} for p in list_pipelines()]})
+        return JSONResponse(
+            {
+                "pipelines": [
+                    {"id": p.id, "name": p.name, "steps": len(p.steps), "description": p.description}
+                    for p in list_pipelines()
+                ]
+            }
+        )
 
     @app.post("/api/pipelines")
     async def pipelines_create(request: Request) -> JSONResponse:
@@ -223,7 +243,15 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
         p = get_pipeline(pipeline_id)
         if not p:
             raise HTTPException(404, "Pipeline not found")
-        return JSONResponse({"id": p.id, "name": p.name, "description": p.description, "steps": [s.__dict__ for s in p.steps], "created": p.created})
+        return JSONResponse(
+            {
+                "id": p.id,
+                "name": p.name,
+                "description": p.description,
+                "steps": [s.__dict__ for s in p.steps],
+                "created": p.created,
+            }
+        )
 
     @app.put("/api/pipelines/{pipeline_id}")
     async def pipelines_update(pipeline_id: str, request: Request) -> JSONResponse:
@@ -287,7 +315,9 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
         for name, ep in body["providers"].items():
             val = ep.get("apiKeyEnv", "")
             if re.match(r"^(sk-|gsk_|gsb_|pds-gpt_|fk|skev_|nvapi|lightning-|lt-)", val, re.IGNORECASE):
-                return JSONResponse({"error": f"'{name}': '{val}' looks like an API key, not an env var name"}, status_code=400)
+                return JSONResponse(
+                    {"error": f"'{name}': '{val}' looks like an API key, not an env var name"}, status_code=400
+                )
 
         (CONFIG_DIR / "models.json").write_text(json.dumps(body, indent=2))
         return JSONResponse({"ok": True, "message": "models.json saved. Restart to apply changes."})
@@ -302,14 +332,30 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
         if not body.get("registry"):
             return JSONResponse({"error": "Config must have a 'registry' array"}, status_code=400)
 
-        SOUL_TEMPLATE = "# SOUL.md — Who You Are\n\nYou are a specialized K.I.N.E.T.I.C. agent.\n\n## Core Directives\n- Be helpful, precise, and technically accurate\n- Stay in character as your assigned role\n- Use Markdown for structured responses\n- Never state \"As an AI language model\"\n\n## Communication Style\n- Be concise and direct\n- Use bullet points and code blocks where appropriate\n- Ask clarifying questions when requirements are ambiguous\n\n## Boundaries\n- You can read and write files within the sandbox\n- You can search the web and index knowledge\n- You can delegate tasks to other agents if permitted"
+        soul_template = (
+            "# SOUL.md — Who You Are\n\n"
+            "You are a specialized K.I.N.E.T.I.C. agent.\n\n"
+            "## Core Directives\n"
+            "- Be helpful, precise, and technically accurate\n"
+            "- Stay in character as your assigned role\n"
+            "- Use Markdown for structured responses\n"
+            '- Never state "As an AI language model"\n\n'
+            "## Communication Style\n"
+            "- Be concise and direct\n"
+            "- Use bullet points and code blocks where appropriate\n"
+            "- Ask clarifying questions when requirements are ambiguous\n\n"
+            "## Boundaries\n"
+            "- You can read and write files within the sandbox\n"
+            "- You can search the web and index knowledge\n"
+            "- You can delegate tasks to other agents if permitted"
+        )
 
         for agent in body["registry"]:
             if agent.get("soulPath"):
                 abs_path = (CONFIG_DIR / agent["soulPath"]).resolve()
                 if not abs_path.exists():
                     abs_path.parent.mkdir(parents=True, exist_ok=True)
-                    abs_path.write_text(SOUL_TEMPLATE)
+                    abs_path.write_text(soul_template)
 
         (CONFIG_DIR / "agents.json").write_text(json.dumps(body, indent=2))
         return JSONResponse({"ok": True, "message": "agents.json saved. Restart to apply changes."})

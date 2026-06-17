@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import re
 from pathlib import Path
 
 import click
@@ -74,10 +72,20 @@ def _setup_models() -> None:
 
     if not providers:
         click.echo("  ⚠ No providers configured. Creating placeholder config.")
-        MODELS_PATH.write_text(json.dumps({
-            "defaults": {"classify": {"provider": "", "model": ""}, "think": {"provider": "", "model": ""}, "tool_call": {"provider": "", "model": ""}, "answer": {"provider": "", "model": ""}},
-            "providers": {},
-        }, indent=2))
+        MODELS_PATH.write_text(
+            json.dumps(
+                {
+                    "defaults": {
+                        "classify": {"provider": "", "model": ""},
+                        "think": {"provider": "", "model": ""},
+                        "tool_call": {"provider": "", "model": ""},
+                        "answer": {"provider": "", "model": ""},
+                    },
+                    "providers": {},
+                },
+                indent=2,
+            )
+        )
         click.echo("  ✓ Created placeholder models.json")
         return
 
@@ -85,15 +93,20 @@ def _setup_models() -> None:
     default_model = "gemma3:1b" if "ollama" in first.lower() else "gpt-4o-mini"
     provider_entries = {p["name"]: {"baseUrl": p["baseUrl"], "apiKeyEnv": p["apiKeyEnv"]} for p in providers}
 
-    MODELS_PATH.write_text(json.dumps({
-        "defaults": {
-            "classify": {"provider": first, "model": default_model},
-            "think": {"provider": first, "model": default_model},
-            "tool_call": {"provider": first, "model": default_model},
-            "answer": {"provider": first, "model": default_model},
-        },
-        "providers": provider_entries,
-    }, indent=2))
+    MODELS_PATH.write_text(
+        json.dumps(
+            {
+                "defaults": {
+                    "classify": {"provider": first, "model": default_model},
+                    "think": {"provider": first, "model": default_model},
+                    "tool_call": {"provider": first, "model": default_model},
+                    "answer": {"provider": first, "model": default_model},
+                },
+                "providers": provider_entries,
+            },
+            indent=2,
+        )
+    )
     click.echo(f"  ✓ Created models.json with {len(providers)} provider(s).")
 
 
@@ -110,16 +123,23 @@ def _setup_agents() -> None:
     agent_name = click.prompt("  Display name", default=agent_id).strip()
     provider = click.prompt("  Default provider", default="ollama").strip()
 
-    AGENTS_PATH.write_text(json.dumps({
-        "settings": {"defaults": {"type": "library", "provider": provider, "can_delegate": False}},
-        "registry": [{
-            "id": agent_id,
-            "name": agent_name,
-            "soulPath": f"./{agent_id}/SOUL.md",
-            "provider": provider,
-            "can_delegate": False,
-        }],
-    }, indent=2))
+    AGENTS_PATH.write_text(
+        json.dumps(
+            {
+                "settings": {"defaults": {"type": "library", "provider": provider, "can_delegate": False}},
+                "registry": [
+                    {
+                        "id": agent_id,
+                        "name": agent_name,
+                        "soulPath": f"./{agent_id}/SOUL.md",
+                        "provider": provider,
+                        "can_delegate": False,
+                    }
+                ],
+            },
+            indent=2,
+        )
+    )
     click.echo(f"  ✓ Created agents.json with agent '{agent_id}'.")
 
 

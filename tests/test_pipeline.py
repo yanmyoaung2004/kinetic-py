@@ -19,15 +19,18 @@ class TestPipeline:
     def test_save_and_get(self, tmp_path):
         original_cwd = Path.cwd()
         import os
+
         os.chdir(tmp_path)
         try:
-            pipeline = save_pipeline({
-                "name": "Test Pipeline",
-                "description": "A test",
-                "steps": [
-                    {"id": "step_0", "agent": "agent1", "prompt": "Do {{task}}", "output_var": "result"},
-                ],
-            })
+            pipeline = save_pipeline(
+                {
+                    "name": "Test Pipeline",
+                    "description": "A test",
+                    "steps": [
+                        {"id": "step_0", "agent": "agent1", "prompt": "Do {{task}}", "output_var": "result"},
+                    ],
+                }
+            )
             assert pipeline.id is not None
             assert pipeline.name == "Test Pipeline"
 
@@ -40,6 +43,7 @@ class TestPipeline:
 
     def test_list_pipelines(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
@@ -52,6 +56,7 @@ class TestPipeline:
 
     def test_delete_pipeline(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
@@ -64,11 +69,13 @@ class TestPipeline:
 
     def test_save_preserves_created_on_update(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
             p1 = save_pipeline({"name": "Original", "steps": []})
             import time
+
             time.sleep(0.01)
             p2 = save_pipeline({"id": p1.id, "name": "Updated", "steps": []})
             assert p2.created == p1.created  # Created timestamp preserved
@@ -78,6 +85,7 @@ class TestPipeline:
     @pytest.mark.asyncio
     async def test_execute_pipeline(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:

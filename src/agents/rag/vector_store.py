@@ -78,16 +78,100 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 # ── Keyword extraction ──
 
 STOP_WORDS: set[str] = {
-    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-    "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-    "been", "being", "have", "has", "had", "do", "does", "did", "will",
-    "would", "can", "could", "shall", "should", "may", "might", "must",
-    "it", "its", "this", "that", "these", "those", "i", "you", "he", "she",
-    "we", "they", "me", "him", "her", "us", "them", "my", "your", "his",
-    "its", "our", "their", "not", "no", "nor", "so", "if", "then", "than",
-    "too", "very", "just", "about", "above", "after", "again", "all", "also",
-    "any", "because", "before", "between", "both", "each", "few", "more",
-    "most", "into", "over", "such", "only", "own", "same", "some", "still",
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "with",
+    "by",
+    "from",
+    "as",
+    "is",
+    "was",
+    "are",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "can",
+    "could",
+    "shall",
+    "should",
+    "may",
+    "might",
+    "must",
+    "it",
+    "its",
+    "this",
+    "that",
+    "these",
+    "those",
+    "i",
+    "you",
+    "he",
+    "she",
+    "we",
+    "they",
+    "me",
+    "him",
+    "her",
+    "us",
+    "them",
+    "my",
+    "your",
+    "his",
+    "its",
+    "our",
+    "their",
+    "not",
+    "no",
+    "nor",
+    "so",
+    "if",
+    "then",
+    "than",
+    "too",
+    "very",
+    "just",
+    "about",
+    "above",
+    "after",
+    "again",
+    "all",
+    "also",
+    "any",
+    "because",
+    "before",
+    "between",
+    "both",
+    "each",
+    "few",
+    "more",
+    "most",
+    "into",
+    "over",
+    "such",
+    "only",
+    "own",
+    "same",
+    "some",
+    "still",
 }
 
 
@@ -117,7 +201,10 @@ def _mmr_diversify(results: list[SearchResult], emb_matrix: np.ndarray, lambda_:
         best_score = -float("inf")
         for i in remaining_indices:
             rel = results[i].score
-            sim_to_sel = max(np.dot(emb_matrix[i], se) / (np.linalg.norm(emb_matrix[i]) * np.linalg.norm(se) + 1e-10) for se in selected_embs)
+            sim_to_sel = max(
+                np.dot(emb_matrix[i], se) / (np.linalg.norm(emb_matrix[i]) * np.linalg.norm(se) + 1e-10)
+                for se in selected_embs
+            )
             mmr = lambda_ * rel - (1 - lambda_) * sim_to_sel
             if mmr > best_score:
                 best_score = mmr
@@ -151,8 +238,20 @@ async def add_chunks(agent_id: str, chunks: list[dict[str, Any]]) -> int:
             (c["doc_id"], c.get("title", "Untitled"), c.get("source", ""), now, json.dumps(c.get("metadata", {}))),
         )
         await db.execute(
-            "INSERT INTO chunks (id, doc_id, title, source, text, embedding, added, metadata, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (chunk_id, c["doc_id"], c.get("title", ""), c.get("source", ""), c["text"], emb_buf, now, json.dumps(c.get("metadata", {})), keywords),
+            "INSERT INTO chunks "
+            "(id, doc_id, title, source, text, embedding, added, metadata, keywords) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                chunk_id,
+                c["doc_id"],
+                c.get("title", ""),
+                c.get("source", ""),
+                c["text"],
+                emb_buf,
+                now,
+                json.dumps(c.get("metadata", {})),
+                keywords,
+            ),
         )
         count += 1
     await db.commit()
@@ -189,7 +288,7 @@ async def search_similar(
     params.append(limit)
 
     cursor = await db.execute(sql, params)
-    rows = await cursor.fetchall()
+    rows = list(await cursor.fetchall())
 
     chunks: list[Chunk] = []
     for r in rows:
@@ -198,17 +297,19 @@ async def search_similar(
         if emb_raw:
             n_floats = len(emb_raw) // 4
             emb = list(struct.unpack(f"{n_floats}f", emb_raw))
-        chunks.append(Chunk(
-            id=r["id"],
-            doc_id=r["doc_id"],
-            title=r["title"],
-            source=r["source"],
-            text=r["text"],
-            embedding=emb,
-            added=r["added"],
-            metadata=_safe_json(r["metadata"]),
-            keywords=_safe_json(r["keywords"]),
-        ))
+        chunks.append(
+            Chunk(
+                id=r["id"],
+                doc_id=r["doc_id"],
+                title=r["title"],
+                source=r["source"],
+                text=r["text"],
+                embedding=emb,
+                added=r["added"],
+                metadata=_safe_json(r["metadata"]),
+                keywords=_safe_json(r["keywords"]),
+            )
+        )
 
     # Apply metadata filter in Python (avoids SQLite json_extract quirks)
     if opts.metadata_filter:
@@ -303,8 +404,8 @@ async def remove_document(agent_id: str, doc_id: str) -> bool:
 
 async def get_store_stats(agent_id: str) -> dict[str, int]:
     db = await _get_db(agent_id)
-    docs = await db.execute_fetchall("SELECT COUNT(*) as c FROM docs")
-    chunks = await db.execute_fetchall("SELECT COUNT(*) as c FROM chunks")
+    docs = list(await db.execute_fetchall("SELECT COUNT(*) as c FROM docs"))
+    chunks = list(await db.execute_fetchall("SELECT COUNT(*) as c FROM chunks"))
     return {"doc_count": docs[0][0] if docs else 0, "chunk_count": chunks[0][0] if chunks else 0}
 
 
@@ -439,10 +540,16 @@ def strip_html(html: str) -> str:
 
 
 def extract_document_meta(text: str, source: str | None = None) -> dict[str, Any]:
-    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
     first_line = lines[0] if lines else ""
     title = re.sub(r"^#\s*", "", first_line).strip() or source or "Untitled"
-    headings = len([l for l in lines if re.match(r"^#{1,6}\s", l)])
+    headings = len([line for line in lines if re.match(r"^#{1,6}\s", line)])
     word_count = len(text.split())
     has_non_ascii = bool(re.search(r"[^\x00-\x7F]", text))
-    return {"title": title, "source": source or "unknown", "headings": headings, "word_count": word_count, "has_non_ascii": has_non_ascii}
+    return {
+        "title": title,
+        "source": source or "unknown",
+        "headings": headings,
+        "word_count": word_count,
+        "has_non_ascii": has_non_ascii,
+    }

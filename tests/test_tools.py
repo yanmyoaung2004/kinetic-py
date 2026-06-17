@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import os
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -16,7 +16,7 @@ from src.agents.tools.file_tools import (
     create_write_file_tool,
 )
 from src.agents.tools.registry import ToolHandler, ToolRegistry, create_send_message_tool, create_web_search_tool
-from src.agents.tools.schedule_task import _parse_time_to_delay, create_get_time_tool, create_schedule_task_tool
+from src.agents.tools.schedule_task import _parse_time_to_delay, create_get_time_tool
 from src.agents.tools.system_tools import create_get_system_info_tool, create_read_env_var_tool
 from src.types.agent import ToolDefinition
 
@@ -25,12 +25,22 @@ class TestToolRegistry:
     @pytest.mark.asyncio
     async def test_register_and_execute(self):
         registry = ToolRegistry()
+
         async def _fake_exec(args, ctx=None):
             return f"Executed {args}"
-        registry.register(ToolHandler(
-            definition=ToolDefinition(function={"name": "test_tool", "description": "", "parameters": {"type": "object", "properties": {}, "required": []}}),
-            execute=_fake_exec,
-        ))
+
+        registry.register(
+            ToolHandler(
+                definition=ToolDefinition(
+                    function={
+                        "name": "test_tool",
+                        "description": "",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                    }
+                ),
+                execute=_fake_exec,
+            )
+        )
         assert registry.has("test_tool")
         result = await registry.execute("test_tool", {"key": "val"})
         assert "Executed" in result
@@ -158,8 +168,9 @@ class TestFileTools:
 
 class TestScheduleTask:
     def test_parse_time_to_delay_iso(self):
-        from datetime import datetime, timedelta, timezone
-        future = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+        from datetime import datetime, timedelta
+
+        future = (datetime.now(UTC) + timedelta(hours=2)).isoformat()
         delay = _parse_time_to_delay(future)
         assert delay is not None
         assert delay > 0

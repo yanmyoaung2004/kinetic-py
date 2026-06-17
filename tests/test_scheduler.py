@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-
-import pytest
 
 from src.agents.tasks.scheduler import (
     add_task,
@@ -19,15 +16,19 @@ class TestScheduler:
     def test_add_and_list_task(self, tmp_path):
         original_cwd = Path.cwd()
         import os
+
         os.chdir(tmp_path)
         try:
-            task = add_task("test-agent", {
-                "description": "Test task",
-                "type": "once",
-                "next_run": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-                "dispatch_to": "test-agent",
-                "query": "run test",
-            })
+            task = add_task(
+                "test-agent",
+                {
+                    "description": "Test task",
+                    "type": "once",
+                    "next_run": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+                    "dispatch_to": "test-agent",
+                    "query": "run test",
+                },
+            )
             assert task.id.startswith("task_")
             assert task.description == "Test task"
 
@@ -39,16 +40,20 @@ class TestScheduler:
 
     def test_remove_task(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
-            task = add_task("test-agent", {
-                "description": "To remove",
-                "type": "once",
-                "next_run": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
-                "dispatch_to": "test-agent",
-                "query": "remove me",
-            })
+            task = add_task(
+                "test-agent",
+                {
+                    "description": "To remove",
+                    "type": "once",
+                    "next_run": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+                    "dispatch_to": "test-agent",
+                    "query": "remove me",
+                },
+            )
             assert remove_task("test-agent", task.id)
             assert not remove_task("test-agent", "nonexistent")
             assert len(list_tasks("test-agent")) == 0
@@ -57,23 +62,30 @@ class TestScheduler:
 
     def test_get_overdue_tasks(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
-            add_task("test-agent", {
-                "description": "Past task",
-                "type": "once",
-                "next_run": (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(),
-                "dispatch_to": "test-agent",
-                "query": "past",
-            })
-            add_task("test-agent", {
-                "description": "Future task",
-                "type": "once",
-                "next_run": (datetime.now(timezone.utc) + timedelta(hours=5)).isoformat(),
-                "dispatch_to": "test-agent",
-                "query": "future",
-            })
+            add_task(
+                "test-agent",
+                {
+                    "description": "Past task",
+                    "type": "once",
+                    "next_run": (datetime.now(UTC) - timedelta(minutes=5)).isoformat(),
+                    "dispatch_to": "test-agent",
+                    "query": "past",
+                },
+            )
+            add_task(
+                "test-agent",
+                {
+                    "description": "Future task",
+                    "type": "once",
+                    "next_run": (datetime.now(UTC) + timedelta(hours=5)).isoformat(),
+                    "dispatch_to": "test-agent",
+                    "query": "future",
+                },
+            )
             overdue = get_overdue_tasks()
             overdue_descriptions = [item["task"]["description"] for item in overdue]
             assert "Past task" in overdue_descriptions
@@ -83,16 +95,20 @@ class TestScheduler:
 
     def test_mark_task_run_once(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
-            task = add_task("test-agent", {
-                "description": "One time",
-                "type": "once",
-                "next_run": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
-                "dispatch_to": "test-agent",
-                "query": "once",
-            })
+            task = add_task(
+                "test-agent",
+                {
+                    "description": "One time",
+                    "type": "once",
+                    "next_run": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
+                    "dispatch_to": "test-agent",
+                    "query": "once",
+                },
+            )
             mark_task_run("test-agent", task.id)
             assert len(list_tasks("test-agent")) == 0  # Should be removed
         finally:
@@ -100,29 +116,34 @@ class TestScheduler:
 
     def test_mark_task_run_interval(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
-            task = add_task("test-agent", {
-                "description": "Recurring",
-                "type": "interval",
-                "interval_ms": 60000,
-                "next_run": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
-                "dispatch_to": "test-agent",
-                "query": "interval",
-            })
+            task = add_task(
+                "test-agent",
+                {
+                    "description": "Recurring",
+                    "type": "interval",
+                    "interval_ms": 60000,
+                    "next_run": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
+                    "dispatch_to": "test-agent",
+                    "query": "interval",
+                },
+            )
             mark_task_run("test-agent", task.id)
             tasks = list_tasks("test-agent")
             assert len(tasks) == 1  # Should still exist
             assert tasks[0].last_run is not None
             # next_run should be advanced
             next_time = datetime.fromisoformat(tasks[0].next_run)
-            assert next_time > datetime.now(timezone.utc) - timedelta(seconds=10)
+            assert next_time > datetime.now(UTC) - timedelta(seconds=10)
         finally:
             os.chdir(original_cwd)
 
     def test_get_overdue_tasks_empty(self, tmp_path):
         import os
+
         original_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:

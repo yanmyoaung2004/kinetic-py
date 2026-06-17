@@ -63,7 +63,9 @@ class TestAgentMemory:
         mem = AgentMemory("test-agent", str(tmp_workspace))
         assert mem.read_profile() is None
 
-        profile = UserProfile(known_facts=["likes Python"], preferences=["concise"], last_updated="now", extraction_count=1)
+        profile = UserProfile(
+            known_facts=["likes Python"], preferences=["concise"], last_updated="now", extraction_count=1
+        )
         mem.write_profile(profile)
         loaded = mem.read_profile()
         assert loaded is not None

@@ -29,11 +29,13 @@ class IAgent(Protocol):
 @dataclass
 class ToolDefinition:
     type: str = "function"
-    function: dict[str, Any] = field(default_factory=lambda: {
-        "name": "",
-        "description": "",
-        "parameters": {"type": "object", "properties": {}, "required": []},
-    })
+    function: dict[str, Any] = field(
+        default_factory=lambda: {
+            "name": "",
+            "description": "",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        }
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": self.type, "function": self.function}

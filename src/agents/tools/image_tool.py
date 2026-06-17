@@ -24,16 +24,18 @@ def _ensure_config() -> str | None:
         return None
     try:
         from pathlib import Path
+
         config = json.loads(Path("config/models.json").read_text("utf-8"))
         img_cfg = config.get("image", {})
         provider_name = img_cfg.get("provider", "")
         model = img_cfg.get("model", "dall-e-3")
         if not provider_name:
-            return "Add 'image' section to models.json (e.g., {\"provider\": \"openai\", \"model\": \"dall-e-3\"})"
+            return 'Add \'image\' section to models.json (e.g., {"provider": "openai", "model": "dall-e-3"})'
         prov = config.get("providers", {}).get(provider_name)
         if not prov:
             return f"Provider '{provider_name}' not found in models.json"
         import os
+
         api_key = os.environ.get(prov.get("apiKeyEnv", ""), "")
         if not api_key:
             return f"Env var {prov.get('apiKeyEnv')} not set"
@@ -86,12 +88,18 @@ def create_generate_image_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "generate_image",
-                "description": "Generate an image from a text prompt using AI image generation. Configure 'image' section in models.json.",
+                "description": (
+                    "Generate an image from a text prompt using AI image generation. "
+                    "Configure 'image' section in models.json."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "prompt": {"type": "string", "description": "Detailed description of the image to generate"},
-                        "size": {"type": "string", "description": "Image size: 1024x1024, 1792x1024, or 1024x1792 (default: 1024x1024)"},
+                        "size": {
+                            "type": "string",
+                            "description": "Image size: 1024x1024, 1792x1024, or 1024x1792 (default: 1024x1024)",
+                        },
                         "n": {"type": "number", "description": "Number of images to generate (default: 1, max: 4)"},
                     },
                     "required": ["prompt"],

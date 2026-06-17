@@ -64,7 +64,14 @@ async def _index_github(agent_id: str, args: dict) -> str:
         doc_id = f"github_{int(__import__('time').time() * 1000)}"
 
         chunks_data = [
-            {"doc_id": doc_id, "title": title, "source": url, "text": text, "embedding": embeddings[i], "metadata": {"source": "github", "url": url}}
+            {
+                "doc_id": doc_id,
+                "title": title,
+                "source": url,
+                "text": text,
+                "embedding": embeddings[i],
+                "metadata": {"source": "github", "url": url},
+            }
             for i, text in enumerate(text_chunks)
         ]
         count = await add_chunks(agent_id, chunks_data)
@@ -109,6 +116,7 @@ async def _scrape_and_index(agent_id: str, args: dict) -> str:
 
         # Basic HTML stripping (regex-based like v1)
         import re
+
         content = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
         content = re.sub(r"<style[^>]*>.*?</style>", "", content, flags=re.DOTALL | re.IGNORECASE)
         content = re.sub(r"<[^>]+>", " ", content)
@@ -129,7 +137,14 @@ async def _scrape_and_index(agent_id: str, args: dict) -> str:
         doc_id = f"scrape_{int(__import__('time').time() * 1000)}"
 
         chunks_data = [
-            {"doc_id": doc_id, "title": title, "source": url, "text": text, "embedding": embeddings[i], "metadata": {"source": "web", "url": url}}
+            {
+                "doc_id": doc_id,
+                "title": title,
+                "source": url,
+                "text": text,
+                "embedding": embeddings[i],
+                "metadata": {"source": "web", "url": url},
+            }
             for i, text in enumerate(text_chunks)
         ]
         count = await add_chunks(agent_id, chunks_data)
@@ -140,4 +155,5 @@ async def _scrape_and_index(agent_id: str, args: dict) -> str:
 
 async def _gather(coros: list) -> list:
     import asyncio
+
     return await asyncio.gather(*coros)

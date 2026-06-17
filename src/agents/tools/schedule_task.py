@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from src.agents.tasks.scheduler import add_task
 from src.agents.tools.registry import ToolContext, ToolHandler
@@ -9,7 +9,7 @@ from src.types.agent import ToolDefinition
 
 
 def _parse_time_to_delay(time_str: str) -> int | None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lower = time_str.lower().strip()
 
     # ISO format
@@ -58,7 +58,10 @@ def create_schedule_task_tool(agent_id: str) -> ToolHandler:
                     "properties": {
                         "description": {"type": "string", "description": "Task description / reminder message"},
                         "time": {"type": "string", "description": "Time to run: '12:31 AM', '14:30', or ISO date"},
-                        "delay_minutes": {"type": "number", "description": "Delay in minutes from now (alternative to 'time')"},
+                        "delay_minutes": {
+                            "type": "number",
+                            "description": "Delay in minutes from now (alternative to 'time')",
+                        },
                         "interval_minutes": {"type": "number", "description": "Recurring interval in minutes"},
                     },
                     "required": ["description"],
@@ -73,24 +76,31 @@ async def _do_schedule(agent_id: str, args: dict, ctx: ToolContext | None) -> st
     if args.get("time"):
         delay_ms = _parse_time_to_delay(args["time"])
         if delay_ms is None:
-            return f"Could not understand time '{args['time']}'. Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            return (
+                f"Could not understand time '{args['time']}'. "
+                f"Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
         if delay_ms < 0:
             return f"Time '{args['time']}' has already passed."
     else:
         delay_ms = (args.get("delay_minutes", 0) or 0) * 60_000
 
-    interval_ms = args.get("interval_minutes") * 60_000 if args.get("interval_minutes") else None
-    next_run = (datetime.now(timezone.utc) + timedelta(milliseconds=delay_ms)).isoformat()
+    interval_minutes = args.get("interval_minutes") or 0
+    interval_ms = interval_minutes * 60_000 if interval_minutes else None
+    next_run = (datetime.now(UTC) + timedelta(milliseconds=delay_ms)).isoformat()
 
-    task = add_task(agent_id, {
-        "description": args["description"],
-        "type": "interval" if interval_ms else "once",
-        "interval_ms": interval_ms,
-        "next_run": next_run,
-        "dispatch_to": agent_id,
-        "query": args["description"],
-        "chat_id": ctx.chat_id if ctx else None,
-    })
+    task = add_task(
+        agent_id,
+        {
+            "description": args["description"],
+            "type": "interval" if interval_ms else "once",
+            "interval_ms": interval_ms,
+            "next_run": next_run,
+            "dispatch_to": agent_id,
+            "query": args["description"],
+            "chat_id": ctx.chat_id if ctx else None,
+        },
+    )
 
     time_info = f"at {args['time']}" if args.get("time") else f"in {args.get('delay_minutes', 0)}m"
     recurring = f" (recurring every {args['interval_minutes']}m)" if interval_ms else ""

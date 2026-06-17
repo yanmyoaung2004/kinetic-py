@@ -35,10 +35,7 @@ async def web_search(query: str, count: int = 5) -> str:
         for i, r in enumerate(results):
             date = f" [Published: {r['published']}]" if r.get("published") else ""
             formatted.append(
-                f"Result {i + 1}:\n"
-                f"Title: {r['title']}{date}\n"
-                f"URL: {r['url']}\n"
-                f"Snippet: {r['description']}\n"
+                f"Result {i + 1}:\nTitle: {r['title']}{date}\nURL: {r['url']}\nSnippet: {r['description']}\n"
             )
         return f'Search Results for "{query}":\n\n' + "\n---\n".join(formatted)
     except httpx.HTTPError as e:

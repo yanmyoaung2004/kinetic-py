@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from src.agents.orchestrator import KinetiCDispatcher
@@ -13,6 +11,7 @@ class TestDispatcher:
     @pytest.fixture
     def dispatcher(self, tmp_path):
         import os
+
         original = os.getcwd()
         os.chdir(tmp_path)
         config = ModelConfig(
@@ -30,8 +29,26 @@ class TestDispatcher:
         os.chdir(original)
 
     def test_register_and_get_ids(self, dispatcher):
-        dispatcher.register_agent(AgentCard(id="agent1", system_prompt="test", provider="test", model="test-model", type="library", can_delegate=False))
-        dispatcher.register_agent(AgentCard(id="agent2", system_prompt="test", provider="test", model="test-model", type="library", can_delegate=False))
+        dispatcher.register_agent(
+            AgentCard(
+                id="agent1",
+                system_prompt="test",
+                provider="test",
+                model="test-model",
+                type="library",
+                can_delegate=False,
+            )
+        )
+        dispatcher.register_agent(
+            AgentCard(
+                id="agent2",
+                system_prompt="test",
+                provider="test",
+                model="test-model",
+                type="library",
+                can_delegate=False,
+            )
+        )
         ids = dispatcher.get_registered_agent_ids()
         assert "agent1" in ids
         assert "agent2" in ids
@@ -79,4 +96,5 @@ class TestDispatcher:
     def test_create_sub_agent_no_parent(self, dispatcher):
         with pytest.raises(RuntimeError, match="FORBIDDEN"):
             import asyncio
+
             asyncio.run(dispatcher.create_sub_agent("nonexistent", {"name": "sub", "soul": "be helpful", "model": "m"}))

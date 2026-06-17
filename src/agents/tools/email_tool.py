@@ -16,8 +16,10 @@ from src.types.agent import ToolDefinition
 
 logger = logging.getLogger("kinetic.tools.email")
 
+
 def _read_env(name: str, default: str = "") -> str:
     import dotenv
+
     dotenv.load_dotenv()
     return os.environ.get(name, default)
 
@@ -59,13 +61,13 @@ async def _read_emails(args: dict[str, Any], ctx: ToolContext | None) -> str:
         criteria = []
         if since_days:
             date_since = time_module.strftime("%d-%b-%Y", time_module.gmtime(time_module.time() - since_days * 86400))
-            criteria.append(f'SINCE {date_since}')
+            criteria.append(f"SINCE {date_since}")
         if from_addr:
             criteria.append(f'FROM "{from_addr}"')
         if subject_filter:
             criteria.append(f'SUBJECT "{subject_filter}"')
 
-        search_cmd = f'({" ".join(criteria)})' if criteria else "ALL"
+        search_cmd = f"({' '.join(criteria)})" if criteria else "ALL"
         status, data = mail.search(None, search_cmd)
         if status != "OK":
             mail.logout()
@@ -73,15 +75,19 @@ async def _read_emails(args: dict[str, Any], ctx: ToolContext | None) -> str:
         ids = data[0].split()[-max_emails:]
         results = []
         for eid in ids:
-            status, msg_data = mail.fetch(eid, "(RFC822)")
-            if status != "OK":
+            status, msg_data = mail.fetch(eid, "(RFC822)")  # type: ignore[misc]
+            if status != "OK" or not msg_data:
                 continue
-            msg = BytesParser().parsebytes(msg_data[0][1])
-            results.append({
-                "from": msg.get("From", ""),
-                "subject": msg.get("Subject", ""),
-                "date": msg.get("Date", ""),
-            })
+            msg_bytes = msg_data[0][1]  # type: ignore[index]
+            if isinstance(msg_bytes, bytes):
+                msg = BytesParser().parsebytes(msg_bytes)
+                results.append(
+                    {
+                        "from": msg.get("From", ""),
+                        "subject": msg.get("Subject", ""),
+                        "date": msg.get("Date", ""),
+                    }
+                )
         mail.logout()
         if not results:
             return f"No emails found in {folder} since {date_since}"
@@ -142,35 +148,42 @@ async def _read_email_body(args: dict[str, Any], ctx: ToolContext | None) -> str
 
         ids = data[0].split()
         latest_id = ids[-1]
-        status, msg_data = mail.fetch(latest_id, "(RFC822)")
-        if status != "OK":
+        status, msg_data = mail.fetch(latest_id, "(RFC822)")  # type: ignore[misc]
+        if status != "OK" or not msg_data:
             mail.logout()
             return "Could not fetch email content."
 
-        msg = BytesParser().parsebytes(msg_data[0][1])
+        msg_bytes = msg_data[0][1]  # type: ignore[index]
+        if not isinstance(msg_bytes, bytes):
+            mail.logout()
+            return "Could not parse email content."
+        msg = BytesParser().parsebytes(msg_bytes)
 
         # Extract body
+        def _decode_payload(payload: Any) -> str:
+            if isinstance(payload, bytes):
+                return payload.decode("utf-8", errors="replace")
+            return str(payload or "")
+
         body = ""
         if msg.is_multipart():
             for part in msg.walk():
                 if part.get_content_type() == "text/plain":
-                    body = part.get_payload(decode=True).decode("utf-8", errors="replace")
+                    body = _decode_payload(part.get_payload(decode=True))
                     break
                 elif part.get_content_type() == "text/html":
                     import re
-                    html = part.get_payload(decode=True).decode("utf-8", errors="replace")
+
+                    html = _decode_payload(part.get_payload(decode=True))
                     body = re.sub(r"<[^>]+>", "", html)
         else:
-            body = msg.get_payload(decode=True).decode("utf-8", errors="replace")
+            body = _decode_payload(msg.get_payload(decode=True))
 
         body = body[:5000]
         mail.logout()
 
         result = (
-            f"From: {msg.get('From', '')}\n"
-            f"Subject: {msg.get('Subject', '')}\n"
-            f"Date: {msg.get('Date', '')}\n"
-            f"---\n{body}"
+            f"From: {msg.get('From', '')}\nSubject: {msg.get('Subject', '')}\nDate: {msg.get('Date', '')}\n---\n{body}"
         )
         return result
     except Exception as e:
@@ -182,11 +195,18 @@ def create_read_email_body_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "read_email_body",
-                "description": "Read the full content of a specific email. Search by sender or subject. Use this when the user asks 'tell me more about this email' or 'show me the content'.",
+                "description": (
+                    "Read the full content of a specific email. "
+                    "Search by sender or subject. "
+                    "Use this when the user asks 'tell me more about this email' or 'show me the content'."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "Search by sender email or subject keyword to find the email"},
+                        "query": {
+                            "type": "string",
+                            "description": "Search by sender email or subject keyword to find the email",
+                        },
                         "folder": {"type": "string", "description": "Mail folder (default: INBOX)"},
                     },
                     "required": ["query"],
@@ -218,8 +238,15 @@ async def _reply_email(args: dict[str, Any], ctx: ToolContext | None) -> str:
             mail.logout()
             return f"No email found matching: {query}"
         latest_id = data[0].split()[-1]
-        status, msg_data = mail.fetch(latest_id, "(RFC822)")
-        orig_msg = BytesParser().parsebytes(msg_data[0][1])
+        status, msg_data = mail.fetch(latest_id, "(RFC822)")  # type: ignore[misc]
+        if not msg_data:
+            mail.logout()
+            return "Could not fetch email content."
+        msg_bytes = msg_data[0][1]  # type: ignore[index]
+        if not isinstance(msg_bytes, bytes):
+            mail.logout()
+            return "Could not parse email content."
+        orig_msg = BytesParser().parsebytes(msg_bytes)
         orig_msg_id = orig_msg.get("Message-ID", "")
         orig_subject = orig_msg.get("Subject", "")
         orig_from = orig_msg.get("From", "")
@@ -227,7 +254,8 @@ async def _reply_email(args: dict[str, Any], ctx: ToolContext | None) -> str:
 
         # Extract original From address for reply-to
         import re
-        reply_to_match = re.search(r'<([^>]+)>', orig_from) if '<' in orig_from else None
+
+        reply_to_match = re.search(r"<([^>]+)>", orig_from) if "<" in orig_from else None
         reply_to = reply_to_match.group(1) if reply_to_match else orig_from
 
         subject = orig_subject
@@ -258,11 +286,17 @@ def create_reply_email_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "reply_to_email",
-                "description": "Reply to an email. Finds the original email by sender or subject and sends a reply. Use this when the user says 'reply to' or 'respond to'.",
+                "description": (
+                    "Reply to an email. Finds the original email by sender or subject "
+                    "and sends a reply. Use this when the user says 'reply to' or 'respond to'."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "Search by sender email or subject to find which email to reply to"},
+                        "query": {
+                            "type": "string",
+                            "description": "Search by sender email or subject to find which email to reply to",
+                        },
                         "body": {"type": "string", "description": "The reply message body"},
                         "folder": {"type": "string", "description": "Mail folder (default: INBOX)"},
                     },
@@ -279,14 +313,27 @@ def create_read_emails_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "read_emails",
-                "description": "Read recent emails from the user's inbox. Email credentials are already configured in the environment. When the user asks to read emails, call this tool immediately without asking for credentials.",
+                "description": (
+                    "Read recent emails from the user's inbox. "
+                    "Email credentials are already configured in the environment. "
+                    "When the user asks to read emails, call this tool immediately "
+                    "without asking for credentials."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "folder": {"type": "string", "description": "Mail folder (default: INBOX)"},
                         "max": {"type": "number", "description": "Max emails to fetch (default: 10, max: 50)"},
-                        "since_days": {"type": "number", "description": "Look back days (default: 1). Use a larger number like 7 or 30 to go further back."},
-                        "from": {"type": "string", "description": "Filter by sender email address (e.g., 'test@gmail.com')"},
+                        "since_days": {
+                            "type": "number",
+                            "description": (
+                                "Look back days (default: 1). Use a larger number like 7 or 30 to go further back."
+                            ),
+                        },
+                        "from": {
+                            "type": "string",
+                            "description": "Filter by sender email address (e.g., 'test@gmail.com')",
+                        },
                         "subject": {"type": "string", "description": "Filter by subject line keyword"},
                     },
                 },

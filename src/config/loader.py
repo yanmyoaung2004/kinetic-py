@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from src.types.model_config import EmbeddingConfig, ModelConfig, ProviderEndpoint
+from src.types.model_config import EmbeddingConfig, ModelConfig
 
 logger = logging.getLogger("kinetic.config")
 
@@ -19,7 +19,9 @@ MODELS_CONFIG_PATH = Path("config/models.json")
 AGENTS_CONFIG_PATH = Path("config/agents.json")
 
 
-def load_model_config(config_path: str | Path | None = None) -> tuple[
+def load_model_config(
+    config_path: str | Path | None = None,
+) -> tuple[
     ModelConfig,
     dict[str, dict[str, str]],
     EmbeddingConfig | None,

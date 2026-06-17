@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 import io
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,35 @@ def read_file(path: str | Path) -> dict[str, Any]:
     name = path.name
 
     # Plain text
-    if suffix in (".txt", ".md", ".py", ".js", ".ts", ".html", ".css", ".json", ".yaml", ".yml", ".xml", ".toml", ".ini", ".cfg", ".log", ".sh", ".bat", ".ps1", ".sql", ".r", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".hpp"):
+    if suffix in (
+        ".txt",
+        ".md",
+        ".py",
+        ".js",
+        ".ts",
+        ".html",
+        ".css",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".xml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".log",
+        ".sh",
+        ".bat",
+        ".ps1",
+        ".sql",
+        ".r",
+        ".go",
+        ".rs",
+        ".java",
+        ".c",
+        ".cpp",
+        ".h",
+        ".hpp",
+    ):
         try:
             text = path.read_text("utf-8", errors="replace")
             return {"type": "text", "name": name, "content": text, "size": len(text)}
@@ -30,6 +57,7 @@ def read_file(path: str | Path) -> dict[str, Any]:
     if suffix == ".pdf":
         try:
             import fitz  # PyMuPDF
+
             doc = fitz.open(str(path))
             pages = []
             for page in doc:
@@ -54,7 +82,14 @@ def read_file(path: str | Path) -> dict[str, Any]:
                 preview += "First 5 rows:\n"
                 for i, row in enumerate(rows[:5]):
                     preview += f"  {json.dumps(row)}\n"
-            return {"type": "csv", "name": name, "content": preview, "rows": len(rows), "headers": headers, "size": len(text)}
+            return {
+                "type": "csv",
+                "name": name,
+                "content": preview,
+                "rows": len(rows),
+                "headers": headers,
+                "size": len(text),
+            }
         except Exception as e:
             return {"error": str(e), "content": ""}
 
@@ -62,6 +97,7 @@ def read_file(path: str | Path) -> dict[str, Any]:
     if suffix in (".xlsx", ".xls"):
         try:
             import openpyxl
+
             wb = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
             sheets_info = []
             for sheet_name in wb.sheetnames:
@@ -75,7 +111,13 @@ def read_file(path: str | Path) -> dict[str, Any]:
                 sheets_info.append(preview)
             wb.close()
             text = "\n".join(sheets_info)
-            return {"type": "excel", "name": name, "content": text, "sheets": wb.sheetnames, "size": path.stat().st_size}
+            return {
+                "type": "excel",
+                "name": name,
+                "content": text,
+                "sheets": wb.sheetnames,
+                "size": path.stat().st_size,
+            }
         except ImportError:
             return {"error": "Excel support requires openpyxl: pip install openpyxl", "content": ""}
         except Exception as e:
@@ -100,7 +142,12 @@ def read_file(path: str | Path) -> dict[str, Any]:
         text = path.read_text("utf-8", errors="replace")
         return {"type": "text", "name": name, "content": text[:50000], "size": len(text)}
     except Exception:
-        return {"type": "binary", "name": name, "content": f"[Binary file: {name} ({path.stat().st_size} bytes)]", "size": path.stat().st_size}
+        return {
+            "type": "binary",
+            "name": name,
+            "content": f"[Binary file: {name} ({path.stat().st_size} bytes)]",
+            "size": path.stat().st_size,
+        }
 
 
 def get_type_label(result: dict[str, Any]) -> str:

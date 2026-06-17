@@ -13,11 +13,13 @@ from src.types.llm import ChatMessage
 @pytest.fixture
 def provider():
     # Use a non-SDK URL so _fetch_generate is used
-    return UnifiedProvider(UnifiedProviderConfig(
-        base_url="http://unknown-provider:9999/v1",
-        api_key="test-key",
-        model="test-model",
-    ))
+    return UnifiedProvider(
+        UnifiedProviderConfig(
+            base_url="http://unknown-provider:9999/v1",
+            api_key="test-key",
+            model="test-model",
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -60,7 +62,15 @@ async def test_fetch_generate_tool_call(provider):
     with patch.object(provider._client_http, "post", mock_post):
         result = await provider.generate_with_tools(
             [ChatMessage(role="user", content="use tool")],
-            [ToolDefinition(function={"name": "test_tool", "description": "test", "parameters": {"type": "object", "properties": {}, "required": []}})],
+            [
+                ToolDefinition(
+                    function={
+                        "name": "test_tool",
+                        "description": "test",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                    }
+                )
+            ],
         )
         assert result.tool_calls is not None
         assert len(result.tool_calls) == 1
@@ -84,7 +94,15 @@ async def test_fetch_generate_xml_tool_call(provider):
     with patch.object(provider._client_http, "post", mock_post):
         result = await provider.generate_with_tools(
             [ChatMessage(role="user", content="use xml tool")],
-            [ToolDefinition(function={"name": "test_tool", "description": "test", "parameters": {"type": "object", "properties": {}, "required": []}})],
+            [
+                ToolDefinition(
+                    function={
+                        "name": "test_tool",
+                        "description": "test",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                    }
+                )
+            ],
         )
         assert result.tool_calls is not None
         assert result.tool_calls[0]["function"]["name"] == "test_tool"
@@ -107,11 +125,13 @@ async def test_fallback_all_fail():
 
 @pytest.mark.asyncio
 async def test_fallback_success_after_failure():
-    working = UnifiedProvider(UnifiedProviderConfig(
-        base_url="http://localhost:11434/v1",
-        api_key="",
-        model="working",
-    ))
+    working = UnifiedProvider(
+        UnifiedProviderConfig(
+            base_url="http://localhost:11434/v1",
+            api_key="",
+            model="working",
+        )
+    )
 
     call_count = 0
 
@@ -122,7 +142,9 @@ async def test_fallback_success_after_failure():
             raise RuntimeError("fail")
         return {"content": "success", "tool_calls": None, "role": "assistant"}
 
-    with patch.object(working, "_fetch_generate", return_value={"content": "success", "tool_calls": None, "role": "assistant"}):
+    with patch.object(
+        working, "_fetch_generate", return_value={"content": "success", "tool_calls": None, "role": "assistant"}
+    ):
         result = await call_with_fallback(
             [
                 UnifiedProvider(UnifiedProviderConfig(base_url="http://fail", api_key="", model="fail")),
@@ -134,6 +156,7 @@ async def test_fallback_success_after_failure():
 
 
 # ── to_dict message serialization ──
+
 
 class TestMessageSerialization:
     """Verify ChatMessage.to_dict() includes tool-related fields."""
@@ -169,6 +192,7 @@ class TestMessageSerialization:
 
 # ── Provider request body inspection ──
 
+
 class TestRequestBodySerialization:
     """Verify _fetch_generate sends correct JSON body."""
 
@@ -188,7 +212,11 @@ class TestRequestBodySerialization:
 
         messages = [
             ChatMessage(role="user", content="hi"),
-            ChatMessage(role="assistant", content="", tool_calls=[{"id": "c1", "type": "function", "function": {"name": "t", "arguments": "{}"}}]),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[{"id": "c1", "type": "function", "function": {"name": "t", "arguments": "{}"}}],
+            ),
             ChatMessage(role="tool", content="result", tool_call_id="c1"),
         ]
 
@@ -204,15 +232,18 @@ class TestRequestBodySerialization:
 
 # ── Empty response handling ──
 
+
 @pytest.mark.asyncio
 async def test_finish_reason_stop_returns_empty_content(provider):
     """finish_reason='stop' with no content returns LLMResponse(content='')."""
     mock_response = {
-        "choices": [{
-            "index": 0,
-            "message": {"role": "assistant", "reasoning_content": "thinking..."},
-            "finish_reason": "stop",
-        }],
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "reasoning_content": "thinking..."},
+                "finish_reason": "stop",
+            }
+        ],
     }
 
     async def mock_post(*args, **kwargs):
@@ -225,7 +256,15 @@ async def test_finish_reason_stop_returns_empty_content(provider):
     with patch.object(provider._client_http, "post", mock_post):
         result = await provider.generate_with_tools(
             [ChatMessage(role="user", content="hi")],
-            [ToolDefinition(function={"name": "t", "description": "test", "parameters": {"type": "object", "properties": {}, "required": []}})],
+            [
+                ToolDefinition(
+                    function={
+                        "name": "t",
+                        "description": "test",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                    }
+                )
+            ],
         )
         assert result.content == ""
         assert result.tool_calls is None
@@ -235,11 +274,13 @@ async def test_finish_reason_stop_returns_empty_content(provider):
 async def test_finish_reason_not_stop_still_raises(provider):
     """finish_reason='length' with no content still raises (not a clean stop)."""
     mock_response = {
-        "choices": [{
-            "index": 0,
-            "message": {"role": "assistant"},
-            "finish_reason": "length",
-        }],
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant"},
+                "finish_reason": "length",
+            }
+        ],
     }
 
     async def mock_post(*args, **kwargs):
@@ -253,5 +294,13 @@ async def test_finish_reason_not_stop_still_raises(provider):
         with pytest.raises(RuntimeError, match="empty response"):
             await provider.generate_with_tools(
                 [ChatMessage(role="user", content="hi")],
-                [ToolDefinition(function={"name": "t", "description": "test", "parameters": {"type": "object", "properties": {}, "required": []}})],
+                [
+                    ToolDefinition(
+                        function={
+                            "name": "t",
+                            "description": "test",
+                            "parameters": {"type": "object", "properties": {}, "required": []},
+                        }
+                    )
+                ],
             )

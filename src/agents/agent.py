@@ -9,24 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from src.agents.memory import AgentMemory, UserProfile, build_compression_prompt, build_summary_message
-from src.agents.tools.data_connectors import create_github_index_tool, create_web_scraper_tool
-from src.agents.tools.execute_command import create_execute_command_tool
-from src.agents.tools.file_tools import (
-    create_delete_file_tool,
-    create_edit_file_tool,
-    create_list_files_tool,
-    create_read_file_tool,
-    create_undo_file_tool,
-    create_write_file_tool,
-)
-from src.agents.tools.knowledge_tool import create_index_file_tool, create_index_url_tool, create_knowledge_stats_tool, create_query_knowledge_tool
-from src.agents.tools.pipeline_tool import create_run_pipeline_tool
-from src.agents.tools.registry import ToolContext, ToolHandler, ToolRegistry, create_send_message_tool, create_web_search_tool
-from src.agents.tools.code_tool import create_run_code_tool
-from src.agents.tools.send_file_tool import create_send_file_tool
-from src.agents.tools.email_tool import create_read_email_body_tool, create_read_emails_tool, create_reply_email_tool, create_send_email_tool
-from src.agents.tools.image_tool import create_generate_image_tool
-from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
+from src.agents.rag.embedding import get_embedding
+from src.agents.rag.vector_store import SearchOptions, add_chunks, search_similar
 from src.agents.tools.browser import (
     create_browser_click_tool,
     create_browser_close_tool,
@@ -36,15 +20,51 @@ from src.agents.tools.browser import (
     create_browser_navigate_tool,
     create_browser_screenshot_tool,
 )
+from src.agents.tools.code_tool import create_run_code_tool
+from src.agents.tools.data_connectors import create_github_index_tool, create_web_scraper_tool
+from src.agents.tools.email_tool import (
+    create_read_email_body_tool,
+    create_read_emails_tool,
+    create_reply_email_tool,
+    create_send_email_tool,
+)
+from src.agents.tools.execute_command import create_execute_command_tool
+from src.agents.tools.file_tools import (
+    create_delete_file_tool,
+    create_edit_file_tool,
+    create_list_files_tool,
+    create_read_file_tool,
+    create_undo_file_tool,
+    create_write_file_tool,
+)
+from src.agents.tools.image_tool import create_generate_image_tool
+from src.agents.tools.knowledge_tool import (
+    create_index_file_tool,
+    create_index_url_tool,
+    create_knowledge_stats_tool,
+    create_query_knowledge_tool,
+    ensure_embedding,
+)
+from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
+from src.agents.tools.pipeline_tool import create_run_pipeline_tool
+from src.agents.tools.registry import (
+    ToolContext,
+    ToolHandler,
+    ToolRegistry,
+    create_send_message_tool,
+    create_web_search_tool,
+)
 from src.agents.tools.schedule_task import create_get_time_tool, create_schedule_task_tool
-from src.agents.tools.system_tools import create_download_url_tool, create_get_system_info_tool, create_read_env_var_tool
+from src.agents.tools.send_file_tool import create_send_file_tool
+from src.agents.tools.system_tools import (
+    create_download_url_tool,
+    create_get_system_info_tool,
+    create_read_env_var_tool,
+)
 from src.providers.provider import UnifiedProvider, UnifiedProviderConfig, call_with_fallback
 from src.types.agent import AgentCard, IAgent, ToolDefinition
-from src.types.llm import ChatMessage, LLMProvider
+from src.types.llm import ChatMessage
 from src.types.model_config import StageModelConfig
-from src.agents.rag.embedding import get_embedding
-from src.agents.rag.vector_store import SearchOptions, add_chunks, search_similar
-from src.agents.tools.knowledge_tool import ensure_embedding
 
 logger = logging.getLogger("kinetic.agent")
 
@@ -74,11 +94,19 @@ GLOBAL_PROTOCOLS = """
 - Never output meta-commentary ("I see", "Let me think", "I'm ready").
 - Answer directly. No preamble. No summary at the end.
 - Use Markdown for code blocks only. Avoid emojis.
-- CRITICAL: Never tell the user about configuration or env vars. If a tool exists for the user's request, CALL IT. Do not refuse. Do not explain setup.
-- For general knowledge questions, answer from your training data first. Only use query_knowledge_base if the question is about content the user specifically saved.
-- Use tools sparingly. For simple questions, just answer directly without calling any tools.
-- IMPORTANT: Only use write_file or send_file if the user explicitly asks you to create or send a file. Do not create files "just in case" or as a side effect.
-- IMPORTANT: When the user shares URLs, do not index them unless they explicitly say "save this to my knowledge" or "index this".
+- CRITICAL: Never tell the user about configuration or env vars.
+  If a tool exists for the user's request, CALL IT. Do not refuse.
+  Do not explain setup.
+- For general knowledge questions, answer from your training data first.
+  Only use query_knowledge_base if the question is about content
+  the user specifically saved.
+- Use tools sparingly. For simple questions, just answer directly
+  without calling any tools.
+- IMPORTANT: Only use write_file or send_file if the user explicitly
+  asks you to create or send a file. Do not create files
+  "just in case" or as a side effect.
+- IMPORTANT: When the user shares URLs, do not index them unless
+  they explicitly say "save this to my knowledge" or "index this".
 """
 
 
@@ -96,7 +124,9 @@ def _create_think_providers(
         ep = endpoints.get(c["provider"])
         if not ep:
             raise ValueError(f"Unknown provider '{c['provider']}' for model '{c['model']}'. Check models.json.")
-        providers.append(UnifiedProvider(UnifiedProviderConfig(base_url=ep["base_url"], api_key=ep["api_key"], model=c["model"])))
+        providers.append(
+            UnifiedProvider(UnifiedProviderConfig(base_url=ep["base_url"], api_key=ep["api_key"], model=c["model"]))
+        )
     return providers
 
 
@@ -160,10 +190,12 @@ class AgentInstance(IAgent):
         self._tools = ToolRegistry()
 
         if self.config.type == "library" and self.config.can_delegate:
-            self._tools.register(ToolHandler(
-                definition=SPAWN_SPECIALIST_DEF,
-                execute=lambda args, ctx: self._execute_spawn_specialist(args),
-            ))
+            self._tools.register(
+                ToolHandler(
+                    definition=SPAWN_SPECIALIST_DEF,
+                    execute=lambda args, ctx: self._execute_spawn_specialist(args),
+                )
+            )
 
         if len(agent_registry) > 1:
 
@@ -191,8 +223,10 @@ class AgentInstance(IAgent):
         self._tools.register(create_index_file_tool(self.id))
         self._tools.register(create_index_url_tool(self.id))
         self._tools.register(create_knowledge_stats_tool(self.id))
-        self._tools.register(create_run_pipeline_tool(
-            lambda agent_id, msg, depth=None: self._dispatcher.dispatch(agent_id, msg, depth or 0))
+        self._tools.register(
+            create_run_pipeline_tool(
+                lambda agent_id, msg, depth=None: self._dispatcher.dispatch(agent_id, msg, depth or 0)  # type: ignore[misc]
+            )
         )
         self._tools.register(create_github_index_tool(self.id))
         self._tools.register(create_web_scraper_tool(self.id))
@@ -218,15 +252,17 @@ class AgentInstance(IAgent):
         # Image generation
         self._tools.register(create_generate_image_tool())
 
-        logger.info("[SYSTEM] Initialized: %s [%s] tools=%d", self.id, self.config.type, len(self._tools.get_definitions()))
+        logger.info(
+            "[SYSTEM] Initialized: %s [%s] tools=%d", self.id, self.config.type, len(self._tools.get_definitions())
+        )
 
     def dispose(self) -> None:
         if self.config.type == "ephemeral":
             self._memory.destroy()
 
     async def process(self, message: str, current_depth: int = 0, chat_id: int | None = None) -> str:
-        MAX_DEPTH = 3
-        if current_depth > MAX_DEPTH:
+        max_depth = 3
+        if current_depth > max_depth:
             return "ERROR: Maximum delegation depth reached. Task aborted."
 
         if chat_id is not None:
@@ -242,14 +278,20 @@ class AgentInstance(IAgent):
 
         # Stage 1: Classify (multi mode)
         if self._mode == "multi" and self._classify_providers:
-            prompt = f'Classify this user message into one category: "question", "command", "chitchat", "task".\n\nMessage: {message}\n\nRespond with ONLY the category word.'
+            prompt = (
+                "Classify this user message into one category:"
+                ' "question", "command", "chitchat", "task".'
+                f"\n\nMessage: {message}\n\nRespond with ONLY the category word."
+            )
             try:
                 classification = await call_with_fallback(
                     self._classify_providers,
-                    lambda p: p.generate([
-                        ChatMessage(role="system", content="You classify user messages. Output one word only."),
-                        ChatMessage(role="user", content=prompt),
-                    ]),
+                    lambda p: p.generate(
+                        [
+                            ChatMessage(role="system", content="You classify user messages. Output one word only."),
+                            ChatMessage(role="user", content=prompt),
+                        ]
+                    ),
                 )
                 cls = (classification.content or "").strip().lower()
                 logger.info("[CLASSIFY] %s -> %s", self.id, cls)
@@ -275,13 +317,24 @@ class AgentInstance(IAgent):
         # Stage 3: Polish (multi mode)
         if self._mode == "multi" and self._answer_providers and response:
             try:
-                polish_prompt = f"Polish this response for clarity and conciseness. Keep all factual content. Output ONLY the polished text:\n\n{response}"
+                polish_prompt = (
+                    "Polish this response for clarity and conciseness."
+                    " Keep all factual content. Output ONLY the polished text:\n\n"
+                    f"{response}"
+                )
                 polished = await call_with_fallback(
                     self._answer_providers,
-                    lambda p: p.generate([
-                        ChatMessage(role="system", content="You polish responses. Make them concise and clear. Output only the polished text."),
-                        ChatMessage(role="user", content=polish_prompt),
-                    ]),
+                    lambda p: p.generate(
+                        [
+                            ChatMessage(
+                                role="system",
+                                content=(
+                                    "You polish responses. Make them concise and clear. Output only the polished text."
+                                ),
+                            ),
+                            ChatMessage(role="user", content=polish_prompt),
+                        ]
+                    ),
                 )
                 if polished.content:
                     msgs = self._memory.get_messages()
@@ -317,6 +370,7 @@ class AgentInstance(IAgent):
         try:
             from src.agents.tools.email_tool import _check_config, _read_emails
             from src.agents.tools.registry import ToolContext
+
             err = _check_config()
             if err:
                 return None
@@ -325,7 +379,8 @@ class AgentInstance(IAgent):
             # Parse filter hints from user message
             params = {"folder": "INBOX", "max": 5, "since_days": 1}
             import re as _re
-            from_match = _re.search(r'from\s+([\w.@+-]+)', message.lower())
+
+            from_match = _re.search(r"from\s+([\w.@+-]+)", message.lower())
             if from_match:
                 params["from"] = from_match.group(1)
             if "yesterday" in message.lower():
@@ -386,7 +441,13 @@ class AgentInstance(IAgent):
                         parsed = json.loads(response.content)
                         if "path" in parsed and "content" in parsed:
                             logger.info("[AUTO] Detected raw write_file args in content")
-                            response.tool_calls = [{"id": "auto_0", "type": "function", "function": {"name": "write_file", "arguments": response.content}}]
+                            response.tool_calls = [
+                                {
+                                    "id": "auto_0",
+                                    "type": "function",
+                                    "function": {"name": "write_file", "arguments": response.content},
+                                }
+                            ]
                             response.content = None
                     except (json.JSONDecodeError, TypeError):
                         pass
@@ -399,13 +460,21 @@ class AgentInstance(IAgent):
                             lambda p: p.generate(self._memory.get_messages()),
                         )
                     except Exception:
-                        return "I encountered an issue with my language model. The model does not support tool calling and I couldn't answer your request without tools. Please configure a tool-capable model in models.json for the 'think' stage."
+                        return (
+                            "I encountered an issue with my language model."
+                            " The model does not support tool calling and"
+                            " I couldn't answer your request without tools."
+                            " Please configure a tool-capable model in"
+                            " models.json for the 'think' stage."
+                        )
                 else:
                     return "I encountered a processing error. Please try rephrasing your question."
 
             if response.tool_calls:
                 calls = response.tool_calls
-                logger.info("[TOOL] Iter %d: %s", iteration, ", ".join(c.get("function", {}).get("name", "?") for c in calls))
+                logger.info(
+                    "[TOOL] Iter %d: %s", iteration, ", ".join(c.get("function", {}).get("name", "?") for c in calls)
+                )
 
                 if is_last:
                     msgs = self._memory.get_messages()
@@ -423,7 +492,13 @@ class AgentInstance(IAgent):
                     try:
                         fn_args = json.loads(call["function"]["arguments"])
                     except (json.JSONDecodeError, KeyError):
-                        self._memory.append(ChatMessage(role="tool", tool_call_id=call.get("id", ""), content=f"ERROR: Invalid JSON arguments: {call.get('function', {}).get('arguments', '')}"))
+                        self._memory.append(
+                            ChatMessage(
+                                role="tool",
+                                tool_call_id=call.get("id", ""),
+                                content=f"ERROR: Invalid JSON: {call.get('function', {}).get('arguments', '')}",
+                            )
+                        )
                         continue
 
                     logger.info("[TOOL] %s -> %s", self.id, fn_name)
@@ -431,7 +506,16 @@ class AgentInstance(IAgent):
                     if fn_name == "spawn_specialist":
                         result = await self._execute_spawn_specialist(fn_args, current_depth)
                         self._memory.append(ChatMessage(role="tool", tool_call_id=call.get("id", ""), content=result))
-                        self._memory.append(ChatMessage(role="system", content="The specialist has reported back. Do not delegate again. Construct the final response now using their report."))
+                        self._memory.append(
+                            ChatMessage(
+                                role="system",
+                                content=(
+                                    "The specialist has reported back."
+                                    " Do not delegate again."
+                                    " Construct the final response now using their report."
+                                ),
+                            )
+                        )
                     else:
                         ctx = ToolContext(depth=current_depth, chat_id=self._current_chat_id)
                         result = await self._tools.execute(fn_name, fn_args, ctx)
@@ -474,10 +558,14 @@ Conversation:
         try:
             response = await call_with_fallback(
                 self._think_providers,
-                lambda p: p.generate([
-                    ChatMessage(role="system", content="You extract user information from conversations. Output JSON only."),
-                    ChatMessage(role="user", content=prompt),
-                ]),
+                lambda p: p.generate(
+                    [
+                        ChatMessage(
+                            role="system", content="You extract user information from conversations. Output JSON only."
+                        ),
+                        ChatMessage(role="user", content=prompt),
+                    ]
+                ),
             )
             raw = response.content or "{}"
             raw = re.sub(r"```json|```", "", raw).strip()
@@ -485,12 +573,18 @@ Conversation:
 
             merged = UserProfile(
                 known_facts=list(set((existing.known_facts if existing else []) + extracted.get("new_facts", []))),
-                preferences=list(set((existing.preferences if existing else []) + extracted.get("new_preferences", []))),
+                preferences=list(
+                    set((existing.preferences if existing else []) + extracted.get("new_preferences", []))
+                ),
                 last_updated=__import__("datetime").datetime.now().isoformat(),
                 extraction_count=(existing.extraction_count if existing else 0) + 1,
             )
             self._memory.write_profile(merged)
-            logger.info("[PROFILE] Extracted %d facts, %d preferences", len(extracted.get("new_facts", [])), len(extracted.get("new_preferences", [])))
+            logger.info(
+                "[PROFILE] Extracted %d facts, %d preferences",
+                len(extracted.get("new_facts", [])),
+                len(extracted.get("new_preferences", [])),
+            )
         except Exception:
             pass
 
@@ -503,10 +597,20 @@ Conversation:
         try:
             response = await call_with_fallback(
                 self._think_providers,
-                lambda p: p.generate([
-                    ChatMessage(role="system", content="You summarize conversations. Output a concise paragraph covering key context, decisions, and user information. Write in third person."),
-                    ChatMessage(role="user", content=prompt),
-                ]),
+                lambda p: p.generate(
+                    [
+                        ChatMessage(
+                            role="system",
+                            content=(
+                                "You summarize conversations."
+                                " Output a concise paragraph covering"
+                                " key context, decisions, and user information."
+                                " Write in third person."
+                            ),
+                        ),
+                        ChatMessage(role="user", content=prompt),
+                    ]
+                ),
             )
             if response.content:
                 await self._archive_memory(response.content)
@@ -521,14 +625,19 @@ Conversation:
             emb = await get_embedding(text)
             doc_id = f"mem_{int(__import__('time').time() * 1000)}"
             ts = __import__("datetime").datetime.now().isoformat()
-            await add_chunks(self.id, [{
-                "doc_id": doc_id,
-                "title": f"Memory {ts[:10]}",
-                "source": "memory",
-                "text": text,
-                "embedding": emb,
-                "metadata": {"type": "memory", "session": self._memory.session_id, "timestamp": ts},
-            }])
+            await add_chunks(
+                self.id,
+                [
+                    {
+                        "doc_id": doc_id,
+                        "title": f"Memory {ts[:10]}",
+                        "source": "memory",
+                        "text": text,
+                        "embedding": emb,
+                        "metadata": {"type": "memory", "session": self._memory.session_id, "timestamp": ts},
+                    }
+                ],
+            )
             logger.info("[MEMORY] Archived at %s", ts)
         except Exception as exc:
             logger.warning("[MEMORY] Archive failed: %s", exc)
@@ -538,7 +647,9 @@ Conversation:
             ensure_embedding()
             emb = await get_embedding(message)
             results = await search_similar(
-                self.id, emb, message,
+                self.id,
+                emb,
+                message,
                 SearchOptions(top_k=5, metadata_filter={"type": "memory"}),
             )
             if not results:
@@ -555,11 +666,14 @@ Conversation:
 
     async def _execute_spawn_specialist(self, args: dict, current_depth: int = 0) -> str:
         try:
-            sub_id = await self._dispatcher.create_sub_agent(self.id, {
-                "name": args["name"],
-                "soul": args["soul"],
-                "model": args["model"],
-            })
+            sub_id = await self._dispatcher.create_sub_agent(
+                self.id,
+                {
+                    "name": args["name"],
+                    "soul": args["soul"],
+                    "model": args["model"],
+                },
+            )
             return await self._dispatcher.dispatch(sub_id, args["task"], current_depth + 1)
         except Exception as e:
             return f"CRITICAL_ERROR: Failed to spawn specialist: {e}"

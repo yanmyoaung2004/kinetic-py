@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from src.agents.tasks.pipeline import execute_pipeline, get_pipeline
-from src.agents.tools.registry import ToolContext, ToolHandler
+from src.agents.tools.registry import ToolHandler
 from src.types.agent import ToolDefinition
 
 
@@ -13,7 +13,11 @@ def create_run_pipeline_tool(dispatch_fn: Callable[[str, str, int | None], Any])
         definition=ToolDefinition(
             function={
                 "name": "run_pipeline",
-                "description": "Execute a predefined multi-agent pipeline. A pipeline is a sequence of steps where each step delegates to a different agent and passes results to the next step.",
+                "description": (
+                    "Execute a predefined multi-agent pipeline. "
+                    "A pipeline is a sequence of steps where each step "
+                    "delegates to a different agent and passes results to the next step."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {

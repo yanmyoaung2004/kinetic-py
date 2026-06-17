@@ -12,12 +12,10 @@ from src.agents.rag.vector_store import (
     add_chunks,
     chunk_text,
     get_store_stats,
-    list_documents,
-    remove_document,
     search_similar,
     strip_html,
 )
-from src.agents.tools.registry import ToolContext, ToolHandler
+from src.agents.tools.registry import ToolHandler
 from src.types.agent import ToolDefinition
 
 logger = logging.getLogger("kinetic.tools.knowledge")
@@ -55,11 +53,18 @@ def ensure_embedding() -> None:
         is_local = bool(re.search(r"localhost|127\.0\.0\.1", ep.get("baseUrl", ""), re.IGNORECASE))
 
         import os
-        is_raw_key = bool(re.match(
-            r"^(sk-|gsk_|gsb_|nvapi-|nvapi|fk|pds-gpt_|skev_|lightning-|lt-)", key_env, re.IGNORECASE,
-        ))
+
+        is_raw_key = bool(
+            re.match(
+                r"^(sk-|gsk_|gsb_|nvapi-|nvapi|fk|pds-gpt_|skev_|lightning-|lt-)",
+                key_env,
+                re.IGNORECASE,
+            )
+        )
         if is_raw_key:
-            logger.warning("[RAG] Embedding provider '%s' has a raw API key instead of an env var name", emb["provider"])
+            logger.warning(
+                "[RAG] Embedding provider '%s' has a raw API key instead of an env var name", emb["provider"]
+            )
             return
 
         api_key = "" if is_local else os.environ.get(key_env, "")
@@ -88,7 +93,11 @@ def create_query_knowledge_tool(agent_id: str) -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "query_knowledge_base",
-                "description": "Search your indexed knowledge base using semantic similarity. Use this to retrieve information from documents, code, and web pages you've previously indexed.",
+                "description": (
+                    "Search your indexed knowledge base using semantic similarity. "
+                    "Use this to retrieve information from documents, code, "
+                    "and web pages you've previously indexed."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -112,12 +121,27 @@ async def _query_knowledge(agent_id: str, args: dict) -> str:
             agent_id,
             query_emb,
             query,
-            type("Options", (), {"top_k": args.get("top_k", 5), "keyword_weight": 0.15, "diversify": True, "diversity_lambda": 0.7, "doc_ids": None})(),
+            type(
+                "Options",
+                (),
+                {
+                    "top_k": args.get("top_k", 5),
+                    "keyword_weight": 0.15,
+                    "diversify": True,
+                    "diversity_lambda": 0.7,
+                    "doc_ids": None,
+                },
+            )(),
         )
         if not results:
             return "No relevant information found in the knowledge base."
         return "\n\n---\n\n".join(
-            f"[{i + 1}] {r.chunk.title} (relevance: {r.score * 100:.0f}%)\nSource: {r.chunk.source}\n{r.chunk.text[:600]}"
+            (
+                f"[{i + 1}] {r.chunk.title} "
+                f"(relevance: {r.score * 100:.0f}%)\n"
+                f"Source: {r.chunk.source}\n"
+                f"{r.chunk.text[:600]}"
+            )
             for i, r in enumerate(results)
         )
     except Exception as e:
@@ -134,7 +158,10 @@ def create_index_file_tool(agent_id: str) -> ToolHandler:
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "Relative path within the sandbox"},
-                        "title": {"type": "string", "description": "Optional title for the document (defaults to filename)"},
+                        "title": {
+                            "type": "string",
+                            "description": "Optional title for the document (defaults to filename)",
+                        },
                     },
                     "required": ["path"],
                 },
@@ -161,7 +188,14 @@ async def _index_file(agent_id: str, args: dict) -> str:
         doc_id = f"doc_{int(__import__('time').time() * 1000)}"
 
         chunks_data = [
-            {"doc_id": doc_id, "title": title, "source": f"file://{args['path']}", "text": text, "embedding": embeddings[i], "metadata": {"filename": args["path"]}}
+            {
+                "doc_id": doc_id,
+                "title": title,
+                "source": f"file://{args['path']}",
+                "text": text,
+                "embedding": embeddings[i],
+                "metadata": {"filename": args["path"]},
+            }
             for i, text in enumerate(text_chunks)
         ]
         count = await add_chunks(agent_id, chunks_data)
@@ -175,7 +209,11 @@ def create_index_url_tool(agent_id: str) -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "index_url",
-                "description": "Fetch a URL and save its content into the knowledge base for later search. Only use when the user explicitly asks to save or index a webpage.",
+                "description": (
+                    "Fetch a URL and save its content into the knowledge base "
+                    "for later search. Only use when the user explicitly asks "
+                    "to save or index a webpage."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -215,7 +253,14 @@ async def _index_url(agent_id: str, args: dict) -> str:
         doc_id = f"doc_{int(__import__('time').time() * 1000)}"
 
         chunks_data = [
-            {"doc_id": doc_id, "title": title, "source": url, "text": text, "embedding": embeddings[i], "metadata": {"url": url}}
+            {
+                "doc_id": doc_id,
+                "title": title,
+                "source": url,
+                "text": text,
+                "embedding": embeddings[i],
+                "metadata": {"url": url},
+            }
             for i, text in enumerate(text_chunks)
         ]
         count = await add_chunks(agent_id, chunks_data)
@@ -244,4 +289,5 @@ async def _stats(agent_id: str) -> str:
 
 async def asyncio_gather(coros: list) -> list:
     import asyncio
+
     return await asyncio.gather(*coros)

@@ -4,7 +4,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -50,7 +50,7 @@ def save_pipeline(pipeline: dict[str, Any]) -> Pipeline:
         name=pipeline.get("name", "Unnamed"),
         description=pipeline.get("description", ""),
         steps=[PipelineStep(**s) for s in pipeline.get("steps", [])],
-        created=existing.created if existing else datetime.now(timezone.utc).isoformat(),
+        created=existing.created if existing else datetime.now(UTC).isoformat(),
     )
     _p_path(full.id).write_text(json.dumps(_pipeline_to_dict(full), indent=2))
     return full

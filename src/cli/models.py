@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 from pathlib import Path
 
 import click
@@ -156,4 +155,5 @@ def test() -> None:
                     click.echo(f"  {name:<14} ✗ {e}")
 
     import asyncio
+
     asyncio.run(_test_all())

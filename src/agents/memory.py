@@ -5,7 +5,6 @@ import logging
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from src.types.llm import ChatMessage
 
@@ -24,6 +23,7 @@ class UserProfile:
 
 def _sanitize_id(id_str: str) -> str:
     import re
+
     return re.sub(r"[^a-zA-Z0-9_-]", "_", id_str)
 
 
@@ -166,7 +166,7 @@ class AgentMemory:
             return
         system = [m for m in self._history if m.role == "system"]
         rest = [m for m in self._history if m.role != "system"]
-        keep = rest[-(self.max_messages - len(system)):]
+        keep = rest[-(self.max_messages - len(system)) :]
         self._history = [*system, *keep]
         self._rewrite()
 
@@ -186,7 +186,9 @@ def should_compress(messages: list[ChatMessage], threshold: int = 60) -> bool:
     return len(non_system) > threshold
 
 
-def select_messages_to_compress(messages: list[ChatMessage], tail_size: int = 20) -> tuple[list[ChatMessage], list[ChatMessage]]:
+def select_messages_to_compress(
+    messages: list[ChatMessage], tail_size: int = 20
+) -> tuple[list[ChatMessage], list[ChatMessage]]:
     system = [m for m in messages if m.role == "system"]
     non_system = [m for m in messages if m.role != "system"]
     tail = non_system[-tail_size:]
@@ -213,5 +215,9 @@ Keep it under 200 words. Write in third person ("The user... The assistant...").
 def build_summary_message(summary: str) -> ChatMessage:
     return ChatMessage(
         role="system",
-        content=f"[COMPRESSED HISTORY] Earlier conversation summary:\n{summary}\n\nKey context from earlier in this conversation is captured above. Continue naturally.",
+        content=(
+            f"[COMPRESSED HISTORY] Earlier conversation summary:\n{summary}\n\n"
+            "Key context from earlier in this conversation is captured above."
+            " Continue naturally."
+        ),
     )

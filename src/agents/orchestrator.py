@@ -5,7 +5,6 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Any
 
 from src.agents.agent import AgentInstance
 from src.types.agent import AgentCard, IAgent
@@ -57,16 +56,22 @@ class KinetiCDispatcher:
                     logger.warning("[!] Soul missing for %s: %s", agent_data["id"], soul_path)
 
             available = list(self._model_config.providers.keys())
-            self.register_agent(AgentCard(
-                id=agent_data["id"],
-                system_prompt=system_prompt,
-                provider=agent_data.get("provider", available[0] if available else "openrouter"),
-                model=agent_data.get("model", self._model_config.defaults.get("think", StageModelConfig("", "")).model),
-                type=agent_data.get("type", "library"),
-                api_key="",
-                can_delegate=agent_data.get("can_delegate", True),
-                soul_path=str((config_dir / agent_data["soulPath"]).resolve()) if agent_data.get("soulPath") else None,
-            ))
+            self.register_agent(
+                AgentCard(
+                    id=agent_data["id"],
+                    system_prompt=system_prompt,
+                    provider=agent_data.get("provider", available[0] if available else "openrouter"),
+                    model=agent_data.get(
+                        "model", self._model_config.defaults.get("think", StageModelConfig("", "")).model
+                    ),
+                    type=agent_data.get("type", "library"),
+                    api_key="",
+                    can_delegate=agent_data.get("can_delegate", True),
+                    soul_path=str((config_dir / agent_data["soulPath"]).resolve())
+                    if agent_data.get("soulPath")
+                    else None,
+                )
+            )
         logger.info("[DISPATCHER] Registered %d agents from config.", len(data.get("registry", [])))
 
     def register_agent(self, card: AgentCard) -> None:
@@ -191,6 +196,7 @@ class KinetiCDispatcher:
 
     def get_provider_list(self) -> str:
         import os
+
         lines: list[str] = []
         for name, ep in self._model_config.providers.items():
             key_status = "✓" if os.environ.get(ep.api_key_env) else "⏭"
@@ -226,11 +232,18 @@ class KinetiCDispatcher:
         model = card.model
         if provider not in available:
             fallback = available[0] if available else ""
-            logger.warning("[CONFIG] Agent '%s' references provider '%s' not in models.json. Falling back to '%s'.", card.id, provider, fallback)
+            logger.warning(
+                "[CONFIG] Agent '%s' references provider '%s' not in models.json. Falling back to '%s'.",
+                card.id,
+                provider,
+                fallback,
+            )
             provider = fallback
             model = d.get("think", StageModelConfig("", "")).model
 
-        return StageModelConfig(provider=provider, model=model, fallbacks=d.get("think", StageModelConfig("", "")).fallbacks)
+        return StageModelConfig(
+            provider=provider, model=model, fallbacks=d.get("think", StageModelConfig("", "")).fallbacks
+        )
 
     def _schedule_eviction(self, target_id: str) -> None:
         self._clear_agent_timeout(target_id)
@@ -265,6 +278,7 @@ class KinetiCDispatcher:
 
 def os_env_int(name: str, default: int | None = None) -> int | None:
     import os
+
     try:
         return int(os.environ.get(name, ""))
     except (ValueError, TypeError):

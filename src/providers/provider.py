@@ -69,25 +69,29 @@ class UnifiedProvider:
         return await self._fetch_generate(messages, tools)
 
     async def _sdk_generate(self, messages: list[ChatMessage]) -> LLMResponse:
+        assert self._client_openai is not None
         response = await self._client_openai.chat.completions.create(
             model=self.model,
-            messages=[m.to_dict() for m in messages],
+            messages=[m.to_dict() for m in messages],  # type: ignore[misc]
         )
         choice = response.choices[0]
         message = choice.message
         tool_calls = None
         if message.tool_calls:
-            tool_calls = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
-                }
-                for tc in message.tool_calls
-            ]
+            tool_calls = []
+            for tc in message.tool_calls:
+                fn = getattr(tc, "function", None)
+                if fn is not None:
+                    tool_calls.append(
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": fn.name,
+                                "arguments": fn.arguments,
+                            },
+                        }
+                    )
         return LLMResponse(
             content=message.content,
             tool_calls=tool_calls,
@@ -99,9 +103,10 @@ class UnifiedProvider:
         messages: list[ChatMessage],
         tools: list[ToolDefinition] | None = None,
     ) -> LLMResponse:
+        assert self._client_openai is not None
         kwargs: dict[str, Any] = {
             "model": self.model,
-            "messages": [m.to_dict() for m in messages],
+            "messages": [m.to_dict() for m in messages],  # type: ignore[misc]
         }
         if tools:
             kwargs["tools"] = [t.to_dict() for t in tools]
@@ -112,17 +117,20 @@ class UnifiedProvider:
         message = choice.message
         tool_calls = None
         if message.tool_calls:
-            tool_calls = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
-                }
-                for tc in message.tool_calls
-            ]
+            tool_calls = []
+            for tc in message.tool_calls:
+                fn = getattr(tc, "function", None)
+                if fn is not None:
+                    tool_calls.append(
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": fn.name,
+                                "arguments": fn.arguments,
+                            },
+                        }
+                    )
         return LLMResponse(
             content=message.content,
             tool_calls=tool_calls,
@@ -134,6 +142,7 @@ class UnifiedProvider:
         messages: list[ChatMessage],
         tools: list[ToolDefinition] | None = None,
     ) -> LLMResponse:
+        assert self._client_http is not None
         client = self._client_http
         base = self._config.base_url.rstrip("/")
         body: dict[str, Any] = {
@@ -181,7 +190,8 @@ class UnifiedProvider:
         if not tool_calls and not content:
             if tools and choice.get("finish_reason") != "stop":
                 raise RuntimeError(
-                    f"{self.model}: model returned empty response (no tool calls, no content) — may not support tool calling"
+                    f"{self.model}: model returned empty response "
+                    f"(no tool calls, no content) — may not support tool calling"
                 )
             # Model is done (finish_reason: stop) — return empty content
             return LLMResponse(

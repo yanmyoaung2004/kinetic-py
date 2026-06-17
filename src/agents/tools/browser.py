@@ -155,7 +155,10 @@ def create_browser_navigate_tool() -> ToolHandler:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "url": {"type": "string", "description": "The URL to navigate to (e.g., 'https://example.com')"},
+                        "url": {
+                            "type": "string",
+                            "description": "The URL to navigate to (e.g., 'https://example.com')",
+                        },
                     },
                     "required": ["url"],
                 },
@@ -174,7 +177,10 @@ def create_browser_click_tool() -> ToolHandler:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "selector": {"type": "string", "description": "CSS selector (e.g., '#submit', '.btn', 'a[href*=\"login\"]')"},
+                        "selector": {
+                            "type": "string",
+                            "description": "CSS selector (e.g., '#submit', '.btn', 'a[href*=\"login\"]')",
+                        },
                     },
                     "required": ["selector"],
                 },
@@ -209,11 +215,17 @@ def create_browser_extract_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "browser_extract",
-                "description": "Extract text from the page. Provide a CSS selector to extract specific elements, or omit to get all body text.",
+                "description": (
+                    "Extract text from the page. Provide a CSS selector "
+                    "to extract specific elements, or omit to get all body text."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "selector": {"type": "string", "description": "Optional CSS selector (omit to get full page text)"},
+                        "selector": {
+                            "type": "string",
+                            "description": "Optional CSS selector (omit to get full page text)",
+                        },
                     },
                 },
             },

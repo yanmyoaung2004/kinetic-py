@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 import psutil
 
-from src.agents.tools.registry import ToolContext, ToolHandler
+from src.agents.tools.registry import ToolHandler
 from src.types.agent import ToolDefinition
 
 logger = logging.getLogger("kinetic.tools.system")
@@ -22,6 +22,7 @@ def _ensure_dir() -> None:
 
 def _sanitize_filename(name: str) -> str:
     import re
+
     return re.sub(r"[^a-zA-Z0-9._-]", "_", name)
 
 
@@ -33,7 +34,10 @@ def create_get_system_info_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "get_system_info",
-                "description": "Get information about the host system: OS, hostname, CPU cores, total RAM, free disk space, and platform architecture.",
+                "description": (
+                    "Get information about the host system: OS, hostname, "
+                    "CPU cores, total RAM, free disk space, and platform architecture."
+                ),
                 "parameters": {"type": "object", "properties": {}, "required": []},
             },
         ),
@@ -91,8 +95,8 @@ async def _download(args: dict) -> str:
             resp.raise_for_status()
             content = resp.content
 
-        MAX_BYTES = 5 * 1024 * 1024
-        if len(content) > MAX_BYTES:
+        max_bytes = 5 * 1024 * 1024
+        if len(content) > max_bytes:
             return f"File too large ({len(content) / 1024**2:.1f} MB). Max: 5 MB"
 
         filepath.write_bytes(content)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
@@ -98,7 +97,10 @@ def create_write_file_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "write_file",
-                "description": "Create or overwrite a file in the sandbox. Only use when the user explicitly asks you to write or save a file.",
+                "description": (
+                    "Create or overwrite a file in the sandbox. "
+                    "Only use when the user explicitly asks you to write or save a file."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -126,10 +128,13 @@ async def _do_write(args: dict, ctx: ToolContext | None = None) -> str:
         # Auto-queue for sending to user
         if ctx and ctx.chat_id:
             from src.agents.tools.send_file_tool import _pending
-            _pending.setdefault(ctx.chat_id, []).append({
-                "filename": Path(args["path"]).name,
-                "content": content,
-            })
+
+            _pending.setdefault(ctx.chat_id, []).append(
+                {
+                    "filename": Path(args["path"]).name,
+                    "content": content,
+                }
+            )
         return f"✓ Wrote {args['path']} ({len(content)} bytes). File will be sent to you."
     except Exception as e:
         return f"ERROR: {e}"
@@ -140,7 +145,9 @@ def create_edit_file_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "edit_file",
-                "description": "Edit a file by replacing the first occurrence of text. A backup is saved before editing.",
+                "description": (
+                    "Edit a file by replacing the first occurrence of text. A backup is saved before editing."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -243,7 +250,10 @@ async def _do_undo(args: dict, ctx: ToolContext | None = None) -> str:
 
         diff = ""
         if current is not None and current != backup_content:
-            diff = f" ({abs(len(current) - len(backup_content))} chars {'removed' if len(current) > len(backup_content) else 'restored'})"
+            diff = (
+                f" ({abs(len(current) - len(backup_content))} chars "
+                f"{'removed' if len(current) > len(backup_content) else 'restored'})"
+            )
 
         return f"✓ {args['path']} reverted{diff}. Backup preserved for further undo."
     except Exception as e:

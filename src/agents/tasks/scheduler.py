@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +59,7 @@ def add_task(agent_id: str, task: dict[str, Any]) -> TaskEntry:
         type=task.get("type", "once"),
         interval_ms=task.get("interval_ms"),
         next_run=task.get("next_run", ""),
-        created=datetime.now(timezone.utc).isoformat(),
+        created=datetime.now(UTC).isoformat(),
         last_run=None,
         dispatch_to=task.get("dispatch_to", agent_id),
         query=task.get("query", ""),
@@ -85,7 +85,7 @@ def list_tasks(agent_id: str) -> list[TaskEntry]:
 
 
 def get_overdue_tasks() -> list[dict[str, Any]]:
-    now = datetime.now(timezone.utc).timestamp() * 1000
+    now = datetime.now(UTC).timestamp() * 1000
     overdue: list[dict[str, Any]] = []
 
     if not TASKS_DIR.exists():
@@ -111,13 +111,13 @@ def mark_task_run(agent_id: str, task_id: str) -> None:
     tasks = _read_tasks(agent_id)
     for t in tasks:
         if t.get("id") == task_id:
-            t["last_run"] = datetime.now(timezone.utc).isoformat()
+            t["last_run"] = datetime.now(UTC).isoformat()
             if t.get("type") == "once":
                 tasks.remove(t)
             elif t.get("type") == "interval" and t.get("interval_ms"):
                 t["next_run"] = datetime.fromtimestamp(
-                    (datetime.now(timezone.utc).timestamp() * 1000 + t["interval_ms"]) / 1000,
-                    tz=timezone.utc,
+                    (datetime.now(UTC).timestamp() * 1000 + t["interval_ms"]) / 1000,
+                    tz=UTC,
                 ).isoformat()
             _write_tasks(agent_id, tasks)
             return

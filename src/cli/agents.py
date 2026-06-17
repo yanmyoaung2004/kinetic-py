@@ -78,7 +78,14 @@ def list_cmd() -> None:
 @click.option("--model", help="Model name")
 @click.option("--delegate/--no-delegate", default=None, help="Allow sub-agent delegation")
 @click.option("--soul-path", help="Path to SOUL.md")
-def create(agent_id: str, name: str | None, provider: str | None, model: str | None, delegate: bool | None, soul_path: str | None) -> None:
+def create(
+    agent_id: str,
+    name: str | None,
+    provider: str | None,
+    model: str | None,
+    delegate: bool | None,
+    soul_path: str | None,
+) -> None:
     """Create a new agent"""
     config = _read_agents()
     if any(a["id"] == agent_id for a in config.get("registry", [])):
@@ -121,7 +128,6 @@ def edit(agent_id: str) -> None:
         raise click.ClickException(f"Agent '{agent_id}' not found.")
 
     agent = registry[idx]
-    providers = _read_providers()
 
     agent["name"] = click.prompt("  Name", default=agent.get("name", agent_id)).strip()
     new_provider = click.prompt("  Provider", default=agent.get("provider", "")).strip()

@@ -70,7 +70,11 @@ def create_run_code_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "run_code",
-                "description": "Execute Python code in a sandboxed environment. Use for calculations, data analysis, automation scripts. Returns stdout/stderr. Timeout: 30s.",
+                "description": (
+                    "Execute Python code in a sandboxed environment. "
+                    "Use for calculations, data analysis, automation scripts. "
+                    "Returns stdout/stderr. Timeout: 30s."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {

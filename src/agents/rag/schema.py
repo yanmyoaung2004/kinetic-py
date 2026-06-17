@@ -97,8 +97,8 @@ async def _migrate_from_json(db: aiosqlite.Connection, agent_id: str) -> None:
     if not old_path.exists():
         return
 
-    row = await db.execute_fetchall("SELECT COUNT(*) as c FROM chunks")
-    if row and row[0][0] > 0:
+    rows = list(await db.execute_fetchall("SELECT COUNT(*) as c FROM chunks"))
+    if rows and rows[0][0] > 0:
         return
 
     logger.info("[RAG] Migrating store.json to SQLite for %s...", agent_id)
@@ -119,10 +119,18 @@ async def _migrate_from_json(db: aiosqlite.Connection, agent_id: str) -> None:
             emb_buf = struct.pack(f"{len(emb)}f", *emb)
         await db.execute(
             "INSERT OR IGNORE INTO docs (id, title, source, added, metadata) VALUES (?, ?, ?, ?, ?)",
-            (c.get("docId"), c.get("title", "Untitled"), c.get("source", ""), c.get("added", ""), json.dumps(c.get("metadata", {}))),
+            (
+                c.get("docId"),
+                c.get("title", "Untitled"),
+                c.get("source", ""),
+                c.get("added", ""),
+                json.dumps(c.get("metadata", {})),
+            ),
         )
         await db.execute(
-            "INSERT OR IGNORE INTO chunks (id, doc_id, title, source, text, embedding, added, metadata, keywords) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO chunks "
+            "(id, doc_id, title, source, text, embedding, added, metadata, keywords) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 c.get("id"),
                 c.get("docId"),

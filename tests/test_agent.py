@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
-from src.agents.memory import AgentMemory, ChatMessage, build_compression_prompt, build_summary_message, select_messages_to_compress, should_compress
+from src.agents.memory import (
+    ChatMessage,
+    build_compression_prompt,
+    build_summary_message,
+    select_messages_to_compress,
+    should_compress,
+)
 
 
 class TestMemoryCompressor:

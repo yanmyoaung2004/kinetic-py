@@ -16,17 +16,50 @@ DEFAULT_TIMEOUT_MS = 15_000
 MAX_OUTPUT_BYTES = 100_000
 
 WINDOWS_WHITELIST = {
-    "ipconfig", "systeminfo", "netstat", "whoami", "hostname",
-    "tasklist", "tracert", "ping", "curl", "nslookup",
-    "dir", "type", "findstr", "more", "echo",
-    "git", "where", "powershell",
+    "ipconfig",
+    "systeminfo",
+    "netstat",
+    "whoami",
+    "hostname",
+    "tasklist",
+    "tracert",
+    "ping",
+    "curl",
+    "nslookup",
+    "dir",
+    "type",
+    "findstr",
+    "more",
+    "echo",
+    "git",
+    "where",
+    "powershell",
 }
 
 POSIX_WHITELIST = {
-    "ifconfig", "uname", "hostname", "whoami", "id",
-    "ls", "cat", "grep", "head", "tail", "echo", "date",
-    "ping", "curl", "nslookup", "dig",
-    "git", "ps", "df", "du", "free", "uptime", "which",
+    "ifconfig",
+    "uname",
+    "hostname",
+    "whoami",
+    "id",
+    "ls",
+    "cat",
+    "grep",
+    "head",
+    "tail",
+    "echo",
+    "date",
+    "ping",
+    "curl",
+    "nslookup",
+    "dig",
+    "git",
+    "ps",
+    "df",
+    "du",
+    "free",
+    "uptime",
+    "which",
 }
 
 BLOCKED_PATTERNS = [re.compile(p) for p in [r"\b&&\b", r"\|", r";", r"`", r"\$\(.*?\)", r">", r"<", r"\|&"]]
@@ -58,7 +91,10 @@ def create_execute_command_tool() -> ToolHandler:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "command": {"type": "string", "description": f"The command to run. Allowed: {', '.join(sorted(_get_whitelist()))}"},
+                        "command": {
+                            "type": "string",
+                            "description": f"The command to run. Allowed: {', '.join(sorted(_get_whitelist()))}",
+                        },
                         "args": {
                             "type": "array",
                             "items": {"type": "string"},
@@ -101,7 +137,7 @@ async def _execute(args: dict, ctx: ToolContext | None = None) -> str:
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_ms / 1000)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             return f"ERROR: Command timed out after {timeout_ms}ms."
 

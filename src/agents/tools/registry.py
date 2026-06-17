@@ -64,7 +64,11 @@ def create_send_message_tool(
         definition=ToolDefinition(
             function={
                 "name": "send_message",
-                "description": "Sends a message to another registered agent. Use this to delegate work to a specific agent by ID (e.g., 'main'). The recipient will process the task and return a response.",
+                "description": (
+                    "Sends a message to another registered agent. "
+                    "Use this to delegate work to a specific agent by ID (e.g., 'main'). "
+                    "The recipient will process the task and return a response."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -96,7 +100,11 @@ def create_web_search_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "web_search",
-                "description": "Searches the web using Brave Search. Use this when you need current information, news, or facts that may not be in your training data.",
+                "description": (
+                    "Searches the web using Brave Search. "
+                    "Use this when you need current information, news, "
+                    "or facts that may not be in your training data."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {

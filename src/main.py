@@ -6,18 +6,19 @@ import os
 import signal
 import sys
 from pathlib import Path
+from typing import Any
 
 import dotenv
-dotenv.load_dotenv()
-
 import structlog
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-from src.utils.file_reader import get_type_label, read_file
 from src.agents.orchestrator import KinetiCDispatcher
 from src.agents.tools.send_file_tool import get_pending_files
 from src.config.loader import load_model_config, validate_endpoints
+from src.utils.file_reader import get_type_label, read_file
+
+dotenv.load_dotenv()
 
 structlog.configure(
     processors=[
@@ -71,8 +72,8 @@ COMMANDS_HELP = """
 
 def _convert_markdown(text: str) -> str:
     """Convert Markdown to Telegram HTML format."""
-    import re
     import html
+    import re
 
     # Escape HTML entities first
     text = html.escape(text)
@@ -121,9 +122,10 @@ class KinetiCBot:
         self._agent_target = AGENT_TARGET
         self._start_time = __import__("time").time()
 
-    async def handle_command(self, update: Update, context: None = None) -> None:
-        chat_id = update.effective_chat.id if update.effective_chat else 0
-        text = update.message.text if update.message else ""
+    async def handle_command(self, update: Update, context: Any = None) -> None:
+        msg = update.message
+        assert msg is not None
+        text = msg.text or ""
         if not text:
             return
 
@@ -131,32 +133,34 @@ class KinetiCBot:
         cmd = parts[0].lower()
 
         if cmd in ("/start", "/help"):
-            await update.message.reply_text(COMMANDS_HELP)
+            await msg.reply_text(COMMANDS_HELP)
             return
 
         if cmd == "/models" and len(parts) >= 4 and parts[1] == "set" and parts[2] == "think":
             provider = parts[3]
             model = " ".join(parts[4:]) if len(parts) > 4 else None
             result = self.dispatcher.set_stage_override("think", provider, model)
-            await update.message.reply_text(result)
+            await msg.reply_text(result)
             return
 
         if cmd == "/models" and len(parts) >= 3 and parts[1] == "reset" and parts[2] == "think":
             result = self.dispatcher.clear_stage_override("think")
-            await update.message.reply_text(result)
+            await msg.reply_text(result)
             return
 
         if cmd == "/models":
-            config = self.dispatcher.get_active_config()
-            await update.message.reply_text(f"Current stage configuration:\n{config}\n\nUse /models set think <provider> [model] to switch at runtime.")
+            config_text = self.dispatcher.get_active_config()
+            reply = f"Current stage configuration:\n{config_text}"
+            reply += "\n\nUse /models set think <provider> [model] to switch at runtime."
+            await msg.reply_text(reply)
             return
 
         if cmd == "/providers":
-            await update.message.reply_text("Available providers:\n" + self.dispatcher.get_provider_list())
+            await msg.reply_text("Available providers:\n" + self.dispatcher.get_provider_list())
             return
 
         if cmd == "/status":
-            await update.message.reply_text(
+            await msg.reply_text(
                 f"Uptime: {self.dispatcher.get_uptime()}\n"
                 f"Active agents: {self.dispatcher.get_agent_count()}\n"
                 f"Dispatch target: {self._agent_target}"
@@ -164,17 +168,18 @@ class KinetiCBot:
             return
 
         if cmd == "/profile":
-            from src.agents.memory import AgentMemory
             import json as _json
+
+            from src.agents.memory import AgentMemory
 
             profile_path = Path("agents_workspace") / self._agent_target / "profile.json"
             if profile_path.exists():
                 profile = _json.loads(profile_path.read_text("utf-8"))
                 facts = "\n".join(f"• {f}" for f in profile.get("known_facts", [])) or "None yet"
                 prefs = ", ".join(profile.get("preferences", [])) or "None yet"
-                await update.message.reply_text(f"Known facts:\n{facts}\n\nPreferences: {prefs}")
+                await msg.reply_text(f"Known facts:\n{facts}\n\nPreferences: {prefs}")
             else:
-                await update.message.reply_text("No profile extracted yet. Send me a few messages and I'll learn about you.")
+                await msg.reply_text("No profile extracted yet. Send me a few messages and I'll learn about you.")
             return
 
         if cmd == "/reset":
@@ -183,15 +188,16 @@ class KinetiCBot:
             session_id = self.dispatcher.get_active_session()
             mem = AgentMemory(self._agent_target, "agents_workspace", session_id=session_id)
             mem.reset()
-            await update.message.reply_text(f"✓ Session '{session_id}' cleared.")
+            await msg.reply_text(f"✓ Session '{session_id}' cleared.")
             return
 
         if cmd == "/session" and len(parts) >= 3 and parts[1] == "new":
             name = "-".join(parts[2:])
             import re as _re
+
             name = _re.sub(r"[^a-zA-Z0-9_-]", "_", name)
             result = self.dispatcher.set_session(name)
-            await update.message.reply_text(result)
+            await msg.reply_text(result)
             return
 
         if cmd == "/session" and len(parts) >= 2 and parts[1] == "list":
@@ -199,8 +205,12 @@ class KinetiCBot:
 
             sessions = AgentMemory.list_sessions(self._agent_target, "agents_workspace")
             active = self.dispatcher.get_active_session()
-            session_list = "\n".join(f"  {s}{' ← active' if s == active else ''}" for s in sessions) if sessions else "  (no additional sessions)"
-            await update.message.reply_text(f"Sessions:\n{session_list}\n\nActive: {active}")
+            session_list = (
+                "\n".join(f"  {s}{' ← active' if s == active else ''}" for s in sessions)
+                if sessions
+                else "  (no additional sessions)"
+            )
+            await msg.reply_text(f"Sessions:\n{session_list}\n\nActive: {active}")
             return
 
         if cmd == "/session" and len(parts) >= 2:
@@ -209,15 +219,15 @@ class KinetiCBot:
 
             sessions = AgentMemory.list_sessions(self._agent_target, "agents_workspace")
             if name != "default" and name not in sessions:
-                await update.message.reply_text(f"Session '{name}' not found. Use /session new {name} to create it.")
+                await msg.reply_text(f"Session '{name}' not found. Use /session new {name} to create it.")
                 return
             result = self.dispatcher.set_session(name)
-            await update.message.reply_text(result)
+            await msg.reply_text(result)
             return
 
         if cmd == "/session":
             active = self.dispatcher.get_active_session()
-            await update.message.reply_text(f"Active session: {active}\n\nUse /session new <name> to start a new one.")
+            await msg.reply_text(f"Active session: {active}\n\nUse /session new <name> to start a new one.")
             return
 
         if cmd == "/task" and len(parts) >= 2 and parts[1] == "list":
@@ -225,25 +235,27 @@ class KinetiCBot:
 
             tasks = list_tasks(self._agent_target)
             if not tasks:
-                await update.message.reply_text("No scheduled tasks.")
+                await msg.reply_text("No scheduled tasks.")
                 return
             lines = []
             for t in tasks:
-                next_time = __import__("datetime").datetime.fromisoformat(t.next_run).strftime("%c") if t.next_run else "?"
+                next_time = (
+                    __import__("datetime").datetime.fromisoformat(t.next_run).strftime("%c") if t.next_run else "?"
+                )
                 type_str = f"every {t.interval_ms // 60000}m" if t.interval_ms else "once"
                 lines.append(f"  • {t.description} ({type_str}) — next: {next_time} — `{t.id}`")
-            await update.message.reply_text("Scheduled tasks:\n" + "\n".join(lines))
+            await msg.reply_text("Scheduled tasks:\n" + "\n".join(lines))
             return
 
         if cmd == "/task" and len(parts) >= 3 and parts[1] == "remove":
             from src.agents.tasks.scheduler import remove_task
 
             ok = remove_task(self._agent_target, parts[2])
-            await update.message.reply_text(f"{'✓ Task removed.' if ok else f'Task not found.'}")
+            await msg.reply_text(f"{'✓ Task removed.' if ok else 'Task not found.'}")
             return
 
         if cmd == "/task":
-            await update.message.reply_text("Usage: /task list | /task remove <id>")
+            await msg.reply_text("Usage: /task list | /task remove <id>")
             return
 
         if cmd == "/knowledge" and len(parts) >= 2 and parts[1] == "list":
@@ -251,81 +263,102 @@ class KinetiCBot:
 
             docs = await list_documents(self._agent_target)
             if not docs:
-                await update.message.reply_text("No documents in knowledge base.")
+                await msg.reply_text("No documents in knowledge base.")
                 return
             lines = [f"  • {d.title} ({d.chunk_count} chunks) — `{d.id}`" for d in docs]
-            await update.message.reply_text("Indexed documents:\n" + "\n".join(lines))
+            await msg.reply_text("Indexed documents:\n" + "\n".join(lines))
             return
 
         if cmd == "/knowledge" and len(parts) >= 3 and parts[1] == "remove":
             from src.agents.rag.vector_store import remove_document
 
             ok = await remove_document(self._agent_target, parts[2])
-            await update.message.reply_text(f"{'✓ Removed.' if ok else 'Document not found.'}")
+            await msg.reply_text(f"{'✓ Removed.' if ok else 'Document not found.'}")
             return
 
         if cmd == "/knowledge":
             from src.agents.rag.vector_store import get_store_stats
 
             stats = await get_store_stats(self._agent_target)
-            await update.message.reply_text(
+            await msg.reply_text(
                 f"Knowledge base: {stats['doc_count']} documents, {stats['chunk_count']} chunks.\n\n"
                 f"Index new content by asking the agent to save files or URLs."
             )
             return
 
-    async def handle_message(self, update: Update, context: None = None) -> None:
-        if not update.message or not update.message.text:
+    async def handle_message(self, update: Update, context: Any = None) -> None:
+        msg = update.message
+        if msg is None or not msg.text:
             return
-        chat_id = update.effective_chat.id if update.effective_chat else 0
+        chat_id = msg.chat_id
         user_id = update.effective_user.id if update.effective_user else 0
 
         # Authorization
         if ALLOWLIST and user_id not in ALLOWLIST:
-            await update.message.reply_text("You do not have permission to use this bot.")
+            await msg.reply_text("You do not have permission to use this bot.")
             return
 
-        text = update.message.text
+        text = msg.text
 
         # Handle commands
         if text.startswith("/"):
             await self.handle_command(update, context)
             return
 
-        await update.effective_chat.send_action("typing")
+        assert msg.chat is not None
+        await msg.chat.send_action("typing")
         try:
             response = await self.dispatcher.dispatch(self._agent_target, text, 0, chat_id)
             safe = _convert_markdown(response or "(no response)")
             if len(safe) > 4000:
                 safe = safe[:4000] + "\n\n... (truncated)"
-            await update.message.reply_text(safe, parse_mode="HTML")
+            await msg.reply_text(safe, parse_mode="HTML")
             await self._send_pending_files(chat_id, update)
         except Exception as e:
-            await update.message.reply_text(f"Error: {e}")
+            await msg.reply_text(f"Error: {e}")
 
     async def _send_pending_files(self, chat_id: int, update: Update) -> None:
         files = get_pending_files(chat_id)
+        msg = update.message
+        if msg is None:
+            return
+        assert msg.chat is not None
         for f in files:
-            await update.effective_chat.send_action("upload_document")
+            await msg.chat.send_action("upload_document")
             content = f["content"]
             if isinstance(content, str):
                 content = content.encode("utf-8")
             from telegram import InputFile
-            await update.message.reply_document(document=InputFile(content, filename=f["filename"]))
 
-    async def handle_file(self, update: Update, context: None = None) -> None:
-        if not update.message:
+            await msg.reply_document(document=InputFile(content, filename=f["filename"]))
+
+    async def handle_file(self, update: Update, context: Any = None) -> None:
+        msg = update.message
+        if msg is None:
             return
-        chat_id = update.effective_chat.id if update.effective_chat else 0
-        caption = (update.message.caption or "").strip()
+        chat_id = msg.chat_id
+        caption = (msg.caption or "").strip()
 
-        await update.effective_chat.send_action("typing")
+        assert msg.chat is not None
+        await msg.chat.send_action("typing")
 
         try:
-            file = await (update.message.effective_attachment.get_file())
-            filename = getattr(update.message.effective_attachment, "file_name", file.file_path.split("/")[-1] if file.file_path else "unknown.txt")
+            from telegram import Document, PhotoSize
+
+            attachment = msg.effective_attachment
+            if isinstance(attachment, (Document, PhotoSize)):
+                file = await attachment.get_file()
+            elif isinstance(attachment, list) and attachment:
+                file = await attachment[-1].get_file()
+            else:
+                await msg.reply_text("Unsupported attachment type.")
+                return
+            filename = getattr(
+                attachment, "file_name", file.file_path.split("/")[-1] if file.file_path else "unknown.txt"
+            )
 
             from pathlib import Path
+
             sandbox = Path("agent_sandbox")
             sandbox.mkdir(exist_ok=True)
             file_path = sandbox / filename
@@ -334,7 +367,7 @@ class KinetiCBot:
 
             result = read_file(file_path)
             if result.get("error"):
-                await update.message.reply_text(f"Error reading file: {result['error']}")
+                await msg.reply_text(f"Error reading file: {result['error']}")
                 return
 
             label = get_type_label(result)
@@ -349,10 +382,10 @@ class KinetiCBot:
 
             response = await self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id)
             safe = _convert_markdown(response)
-            await update.message.reply_text(safe, parse_mode="HTML")
+            await msg.reply_text(safe, parse_mode="HTML")
             await self._send_pending_files(chat_id, update)
         except Exception as e:
-            await update.message.reply_text(f"Error: {e}")
+            await msg.reply_text(f"Error: {e}")
 
     async def start(self) -> None:
         # Start background tasks first (don't depend on Telegram)
@@ -364,14 +397,33 @@ class KinetiCBot:
         token = os.environ.get("TELEGRAM_BOT_TOKEN")
         if token:
             try:
-                self._app = Application.builder().token(token).build()
-                self._app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
-                self._app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, self.handle_file))
-                self._app.add_handler(CommandHandler(["start", "help", "models", "providers", "status", "profile", "reset", "session", "task", "knowledge"], self.handle_command))
+                app = Application.builder().token(token).build()
+                app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+                app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, self.handle_file))
+                app.add_handler(
+                    CommandHandler(
+                        [
+                            "start",
+                            "help",
+                            "models",
+                            "providers",
+                            "status",
+                            "profile",
+                            "reset",
+                            "session",
+                            "task",
+                            "knowledge",
+                        ],
+                        self.handle_command,
+                    )
+                )
 
-                await self._app.initialize()
-                await self._app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-                await self._app.start()
+                await app.initialize()
+                updater = app.updater
+                if updater is not None:
+                    await updater.start_polling(allowed_updates=Update.ALL_TYPES)
+                await app.start()
+                self._app = app
                 logger.info("[MAIN] Telegram bot connected.")
             except Exception as e:
                 self._app = None
@@ -424,6 +476,7 @@ class KinetiCBot:
 
     async def _start_api(self) -> None:
         import uvicorn
+
         from src.api.server import create_app
 
         app = create_app(self.dispatcher, self._agent_target)

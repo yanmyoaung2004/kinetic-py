@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import UTC, datetime, timedelta
 
 from src.agents.tasks.scheduler import add_task
 from src.agents.tools.registry import ToolContext, ToolHandler
@@ -15,13 +14,25 @@ def create_create_monitor_tool(agent_id: str) -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "create_monitor",
-                "description": "Create a recurring monitor that checks a condition periodically and notifies you when it's met. Example: 'Check if Apple stock is below $200 every 6 hours'",
+                "description": (
+                    "Create a recurring monitor that checks a condition periodically "
+                    "and notifies you when it's met. "
+                    "Example: 'Check if Apple stock is below $200 every 6 hours'"
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "description": {"type": "string", "description": "Human-readable name for this monitor"},
-                        "check_prompt": {"type": "string", "description": "The prompt/question to check each time. Be specific about what to look for."},
-                        "interval_minutes": {"type": "number", "description": "How often to check (in minutes). Minimum: 15."},
+                        "check_prompt": {
+                            "type": "string",
+                            "description": (
+                                "The prompt/question to check each time. Be specific about what to look for."
+                            ),
+                        },
+                        "interval_minutes": {
+                            "type": "number",
+                            "description": "How often to check (in minutes). Minimum: 15.",
+                        },
                     },
                     "required": ["description", "check_prompt", "interval_minutes"],
                 },
@@ -33,24 +44,27 @@ def create_create_monitor_tool(agent_id: str) -> ToolHandler:
 
 async def _do_create_monitor(agent_id: str, args: dict, ctx: ToolContext | None) -> str:
     interval = max(int(args.get("interval_minutes", 60)), 15)
-    next_run = (datetime.now(timezone.utc) + timedelta(minutes=interval)).isoformat()
+    next_run = (datetime.now(UTC) + timedelta(minutes=interval)).isoformat()
 
-    task = add_task(agent_id, {
-        "description": args["description"],
-        "type": "monitor",
-        "interval_ms": interval * 60_000,
-        "next_run": next_run,
-        "dispatch_to": agent_id,
-        "query": args["check_prompt"],
-        "chat_id": ctx.chat_id if ctx else None,
-    })
+    task = add_task(
+        agent_id,
+        {
+            "description": args["description"],
+            "type": "monitor",
+            "interval_ms": interval * 60_000,
+            "next_run": next_run,
+            "dispatch_to": agent_id,
+            "query": args["check_prompt"],
+            "chat_id": ctx.chat_id if ctx else None,
+        },
+    )
     return (
         f'✓ Monitor created: "{args["description"]}"\n'
-        f'  Check prompt: {args["check_prompt"]}\n'
-        f'  Interval: {interval} minutes\n'
-        f'  First check at: {next_run[:19]}\n'
-        f'  Task ID: {task.id}\n'
-        f'  You will be notified when the condition is met.'
+        f"  Check prompt: {args['check_prompt']}\n"
+        f"  Interval: {interval} minutes\n"
+        f"  First check at: {next_run[:19]}\n"
+        f"  Task ID: {task.id}\n"
+        f"  You will be notified when the condition is met."
     )
 
 

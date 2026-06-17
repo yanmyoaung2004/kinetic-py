@@ -33,10 +33,12 @@ async def _send_file(args: dict[str, Any], ctx: ToolContext | None) -> str:
         return "ERROR: No chat_id available to send file."
 
     content = file_path.read_bytes()
-    _pending.setdefault(chat_id, []).append({
-        "filename": file_path.name,
-        "content": content,
-    })
+    _pending.setdefault(chat_id, []).append(
+        {
+            "filename": file_path.name,
+            "content": content,
+        }
+    )
 
     return f"File '{file_path.name}' will be sent to you."
 
@@ -46,11 +48,17 @@ def create_send_file_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "send_file",
-                "description": "Send a file from the sandbox to the user via Telegram. Call this after creating a file with write_file.",
+                "description": (
+                    "Send a file from the sandbox to the user via Telegram. "
+                    "Call this after creating a file with write_file."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Path to the file in the sandbox (e.g., 'agent_sandbox/output.txt')"},
+                        "path": {
+                            "type": "string",
+                            "description": "Path to the file in the sandbox (e.g., 'agent_sandbox/output.txt')",
+                        },
                     },
                     "required": ["path"],
                 },

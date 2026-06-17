@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 
 import click
 
@@ -46,7 +45,9 @@ def create(name: str, description: str, steps: str | None) -> None:
             agent = click.prompt("    Agent ID").strip()
             prompt = click.prompt("    Prompt (use {{variables}})").strip()
             output_var = click.prompt("    Output variable name").strip()
-            steps_list.append({"id": f"step_{len(steps_list)}", "agent": agent, "prompt": prompt, "output_var": output_var})
+            steps_list.append(
+                {"id": f"step_{len(steps_list)}", "agent": agent, "prompt": prompt, "output_var": output_var}
+            )
             if not click.confirm("    Add another step?", default=True):
                 break
 
@@ -59,6 +60,7 @@ def create(name: str, description: str, steps: str | None) -> None:
 def execute(pipeline_id: str) -> None:
     """Execute a pipeline"""
     import asyncio
+
     from src.agents.tasks.pipeline import execute_pipeline, get_pipeline
 
     pipeline = get_pipeline(pipeline_id)
@@ -67,6 +69,7 @@ def execute(pipeline_id: str) -> None:
 
     # Collect variables
     from re import findall
+
     var_names = set()
     for step in pipeline.steps:
         for m in findall(r"\{\{(\w+)\}\}", step.prompt):
@@ -82,11 +85,31 @@ def execute(pipeline_id: str) -> None:
 
         config, endpoints, _ = load_model_config()
         disp = KinetiCDispatcher(config, endpoints)
-        disp.register_agent(type("", (), {"id": agent_id,
-            "config": type("", (), {"id": agent_id, "system_prompt": "You are a helpful K.I.N.E.T.I.C. agent.",
-                "provider": config.defaults.get("think", type("", (), {"provider": ""})()).provider if config.defaults else "",
-                "model": config.defaults.get("think", type("", (), {"model": ""})()).model if config.defaults else "",
-                "type": "library", "api_key": "", "can_delegate": False})})(),
+        disp.register_agent(
+            type(
+                "",
+                (),
+                {
+                    "id": agent_id,
+                    "config": type(
+                        "",
+                        (),
+                        {
+                            "id": agent_id,
+                            "system_prompt": "You are a helpful K.I.N.E.T.I.C. agent.",
+                            "provider": config.defaults.get("think", type("", (), {"provider": ""})()).provider
+                            if config.defaults
+                            else "",
+                            "model": config.defaults.get("think", type("", (), {"model": ""})()).model
+                            if config.defaults
+                            else "",
+                            "type": "library",
+                            "api_key": "",
+                            "can_delegate": False,
+                        },
+                    ),
+                },
+            )(),
         )
         return await disp.dispatch(agent_id, msg, 0)
 

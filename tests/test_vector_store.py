@@ -58,14 +58,15 @@ class TestMMR:
         assert len(diversified) == 1
 
     def test_diversity_selects_different(self):
-        emb_matrix = np.array([
-            [1.0, 0.0, 0.0],
-            [0.9, 0.1, 0.0],
-            [0.0, 1.0, 0.0],
-        ])
+        emb_matrix = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.9, 0.1, 0.0],
+                [0.0, 1.0, 0.0],
+            ]
+        )
         results = [
-            SearchResult(chunk=type("", (), {"embedding": emb_matrix[i]})(), score=0.9 - i * 0.1)
-            for i in range(3)
+            SearchResult(chunk=type("", (), {"embedding": emb_matrix[i]})(), score=0.9 - i * 0.1) for i in range(3)
         ]
         diversified = _mmr_diversify(results, emb_matrix, 0.5)
         assert len(diversified) == 3
@@ -119,13 +120,21 @@ class TestAddChunks:
     @pytest.mark.asyncio
     async def test_add_and_stats(self, tmp_workspace):
         from src.agents.rag.vector_store import _db_cache, add_chunks, get_store_stats
+
         _db_cache.clear()
         import os
+
         os.chdir(tmp_workspace)
 
         chunks = [
-            {"doc_id": "doc_1", "title": "Test Doc", "source": "manual",
-             "text": "This is test content", "embedding": [0.1, 0.2, 0.3], "metadata": {}},
+            {
+                "doc_id": "doc_1",
+                "title": "Test Doc",
+                "source": "manual",
+                "text": "This is test content",
+                "embedding": [0.1, 0.2, 0.3],
+                "metadata": {},
+            },
         ]
         count = await add_chunks("test-agent-add", chunks)
         assert count == 1
@@ -136,16 +145,30 @@ class TestAddChunks:
 
     @pytest.mark.asyncio
     async def test_search_similar(self, tmp_workspace):
-        from src.agents.rag.vector_store import _db_cache, SearchOptions, add_chunks, search_similar
+        from src.agents.rag.vector_store import SearchOptions, _db_cache, add_chunks, search_similar
+
         _db_cache.clear()
         import os
+
         os.chdir(tmp_workspace)
 
         chunks = [
-            {"doc_id": "doc_2", "title": "Python", "source": "manual",
-             "text": "Python is a programming language", "embedding": [0.1, 0.2, 0.3], "metadata": {}},
-            {"doc_id": "doc_3", "title": "Java", "source": "manual",
-             "text": "Java is another language", "embedding": [0.3, 0.2, 0.1], "metadata": {}},
+            {
+                "doc_id": "doc_2",
+                "title": "Python",
+                "source": "manual",
+                "text": "Python is a programming language",
+                "embedding": [0.1, 0.2, 0.3],
+                "metadata": {},
+            },
+            {
+                "doc_id": "doc_3",
+                "title": "Java",
+                "source": "manual",
+                "text": "Java is another language",
+                "embedding": [0.3, 0.2, 0.1],
+                "metadata": {},
+            },
         ]
         await add_chunks("test-agent-search", chunks)
 
@@ -158,28 +181,50 @@ class TestListAndRemove:
     @pytest.mark.asyncio
     async def test_list_documents(self, tmp_workspace):
         from src.agents.rag.vector_store import _db_cache, add_chunks, list_documents
+
         _db_cache.clear()
         import os
+
         os.chdir(tmp_workspace)
 
-        await add_chunks("test-agent-list", [
-            {"doc_id": "doc_list_1", "title": "Doc", "source": "manual",
-             "text": "Content", "embedding": [0.1, 0.2], "metadata": {}},
-        ])
+        await add_chunks(
+            "test-agent-list",
+            [
+                {
+                    "doc_id": "doc_list_1",
+                    "title": "Doc",
+                    "source": "manual",
+                    "text": "Content",
+                    "embedding": [0.1, 0.2],
+                    "metadata": {},
+                },
+            ],
+        )
         docs = await list_documents("test-agent-list")
         assert len(docs) >= 1
 
     @pytest.mark.asyncio
     async def test_remove_document(self, tmp_workspace):
         from src.agents.rag.vector_store import _db_cache, add_chunks, get_store_stats, remove_document
+
         _db_cache.clear()
         import os
+
         os.chdir(tmp_workspace)
 
-        await add_chunks("test-agent-remove", [
-            {"doc_id": "doc_remove_1", "title": "To Delete", "source": "manual",
-             "text": "Delete me", "embedding": [0.1], "metadata": {}},
-        ])
+        await add_chunks(
+            "test-agent-remove",
+            [
+                {
+                    "doc_id": "doc_remove_1",
+                    "title": "To Delete",
+                    "source": "manual",
+                    "text": "Delete me",
+                    "embedding": [0.1],
+                    "metadata": {},
+                },
+            ],
+        )
         ok = await remove_document("test-agent-remove", "doc_remove_1")
         assert ok
         stats = await get_store_stats("test-agent-remove")

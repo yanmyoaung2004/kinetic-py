@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
@@ -23,6 +22,7 @@ def knowledge() -> None:
 def list_cmd(agent: str) -> None:
     """List indexed documents"""
     import asyncio
+
     from src.agents.rag.vector_store import list_documents
 
     async def _run():
@@ -45,6 +45,7 @@ def list_cmd(agent: str) -> None:
 def inject(text: str | None, url: str | None, file_path: str | None, title: str | None, agent: str) -> None:
     """Index text, URL, or file into the knowledge base"""
     import asyncio
+
     from src.agents.rag.embedding import get_embedding
     from src.agents.rag.vector_store import add_chunks, chunk_text, strip_html
     from src.agents.tools.knowledge_tool import ensure_embedding
@@ -85,16 +86,18 @@ def inject(text: str | None, url: str | None, file_path: str | None, title: str 
         chunks_data = []
         for seg in segments:
             emb = await get_embedding(seg)
-            chunks_data.append({
-                "doc_id": f"doc_{int(__import__('time').time() * 1000)}",
-                "title": doc_title,
-                "source": src,
-                "text": seg,
-                "embedding": emb,
-                "metadata": {},
-            })
+            chunks_data.append(
+                {
+                    "doc_id": f"doc_{int(__import__('time').time() * 1000)}",
+                    "title": doc_title,
+                    "source": src,
+                    "text": seg,
+                    "embedding": emb,
+                    "metadata": {},
+                }
+            )
         count = await add_chunks(agent, chunks_data)
-        click.echo(f"  ✓ Indexed \"{doc_title}\" ({count} chunks)")
+        click.echo(f'  ✓ Indexed "{doc_title}" ({count} chunks)')
 
     asyncio.run(_run())
 
@@ -105,6 +108,7 @@ def inject(text: str | None, url: str | None, file_path: str | None, title: str 
 def remove(doc_id: str, agent: str) -> None:
     """Remove a document from the knowledge base"""
     import asyncio
+
     from src.agents.rag.vector_store import remove_document
 
     async def _run():
@@ -119,6 +123,7 @@ def remove(doc_id: str, agent: str) -> None:
 def stats(agent: str) -> None:
     """Show knowledge base statistics"""
     import asyncio
+
     from src.agents.rag.vector_store import get_store_stats
 
     async def _run():
