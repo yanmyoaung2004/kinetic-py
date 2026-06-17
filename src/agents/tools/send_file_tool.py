@@ -8,6 +8,8 @@ from typing import Any
 from src.agents.tools.registry import ToolContext, ToolHandler
 from src.types.agent import ToolDefinition
 
+SANDBOX = Path("agent_sandbox")
+
 # Pending files for each chat_id — populated by the tool, consumed by main.py
 _pending: dict[int, list[dict[str, Any]]] = {}
 
@@ -21,9 +23,14 @@ async def _send_file(args: dict[str, Any], ctx: ToolContext | None) -> str:
     if not path_str:
         return "ERROR: 'path' parameter is required."
 
+    # Try as-is first, then under sandbox (write_file writes to sandbox)
     file_path = Path(path_str)
     if not file_path.exists():
-        return f"ERROR: File not found: {path_str}"
+        sandbox_path = SANDBOX / path_str
+        if sandbox_path.exists():
+            file_path = sandbox_path
+        else:
+            return f"ERROR: File not found: {path_str}"
 
     if not file_path.is_file():
         return f"ERROR: Not a file: {path_str}"

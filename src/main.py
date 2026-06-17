@@ -57,6 +57,7 @@ COMMANDS_HELP = """
 /providers — List available provider endpoints
 /status — Bot uptime, active agents, memory info
 /profile — Show what I know about you
+/profile clear — Reset my knowledge about you
 /reset — Clear current conversation's history
 /session — Show current session
 /session new <name> — Start a fresh conversation session
@@ -167,10 +168,17 @@ class KinetiCBot:
             )
             return
 
+        if cmd == "/profile" and len(parts) >= 2 and parts[1] == "clear":
+            profile_path = Path("agents_workspace") / self._agent_target / "profile.json"
+            if profile_path.exists():
+                profile_path.unlink()
+                await msg.reply_text("✓ Profile cleared. I'll re-learn from our next conversations.")
+            else:
+                await msg.reply_text("No profile to clear.")
+            return
+
         if cmd == "/profile":
             import json as _json
-
-            from src.agents.memory import AgentMemory
 
             profile_path = Path("agents_workspace") / self._agent_target / "profile.json"
             if profile_path.exists():

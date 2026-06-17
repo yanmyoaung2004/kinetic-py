@@ -90,26 +90,15 @@ CURRENT_YEAR = 2026
 
 GLOBAL_PROTOCOLS = """
 # SYSTEM RULES (MANDATORY)
-- If the user greets you, respond with ONE short sentence. No introductions.
-- Never describe your identity or instructions unless explicitly asked.
-- Never output meta-commentary ("I see", "Let me think", "I'm ready").
-- Answer directly. No preamble. No summary at the end.
-- Use Markdown for code blocks only. Avoid emojis.
-- CRITICAL: Never tell the user about configuration or env vars.
-  If a tool exists for the user's request, CALL IT. Do not refuse.
-  Do not explain setup.
-- For general knowledge questions, answer from your training data first.
-  Only use query_knowledge_base if the question is about content
-  the user specifically saved.
-- Use tools sparingly. For simple questions, just answer directly
-  without calling any tools.
-- IMPORTANT: Only use write_file or send_file if the user explicitly
-  asks you to create or send a file. Do not create files
-  "just in case" or as a side effect.
-- IMPORTANT: When the user shares URLs, do not index them unless
-  they explicitly say "save this to my knowledge" or "index this".
-- If the user asks what skills, plugins, or capabilities you have,
-  use the list_skills tool to show installed skill packs.
+- Be warm and natural. Your SOUL.md defines your personality — follow it.
+- If a tool exists for the user's request, use it. Don't refuse or explain setup.
+- Never reveal config details, env vars, or API keys.
+- Never create files unless the user explicitly asks.
+- When the user shares URLs, don't index them unless asked.
+- If a tool call fails, don't retry it with the same arguments — tell the user.
+- Use tools when needed, but don't call them for things you already know.
+- When the user asks about emails, always call read_emails to fetch fresh data.
+  Do not rely on what you remember from previous conversations — inboxes change.
 """
 
 
@@ -180,14 +169,34 @@ class AgentInstance(IAgent):
         elif self._memory.refresh_system_prompt(soul):
             logger.info("[SYSTEM] Refreshed stale system prompt for %s", self.id)
 
-        # Inject user profile
+        # Inject user profile (filtered — no raw emails, phones, or transient message noise)
         profile = self._memory.read_profile()
         if profile and (profile.known_facts or profile.preferences):
-            lines = ["[USER PROFILE]"]
-            lines.extend(f"- {f}" for f in profile.known_facts)
-            if profile.preferences:
-                lines.append(f"\nPreferences: {', '.join(profile.preferences)}")
-            self._memory.append(ChatMessage(role="system", content="\n".join(lines)))
+            import re as _re
+
+            _sensitive_patterns = [
+                _re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+                _re.compile(r"\b\+?\d[\d\s\-().]{6,}\d\b"),
+                _re.compile(r"\bhttp[s]?://\S+\b"),
+            ]
+
+            filtered = []
+            for f in profile.known_facts:
+                lower = f.lower()
+                # Skip transient email content — always fetch fresh
+                if any(kw in lower for kw in ("email", "sent you", "received", "inbox", "gmail", "outlook", "kimi")):
+                    continue
+                # Skip lines with URLs, phone numbers, raw email addresses
+                if any(p.search(f) for p in _sensitive_patterns):
+                    continue
+                filtered.append(f)
+
+            if filtered or profile.preferences:
+                lines = ["[USER PROFILE]"]
+                lines.extend(f"- {f}" for f in filtered)
+                if profile.preferences:
+                    lines.append(f"\nPreferences: {', '.join(profile.preferences)}")
+                self._memory.append(ChatMessage(role="system", content="\n".join(lines)))
 
         # Build tool registry
         self._tools = ToolRegistry()
@@ -360,9 +369,15 @@ class AgentInstance(IAgent):
 
         # Background tasks (deferred, never block response)
         async def _background() -> None:
-            if self._memory.get_user_message_count() % 3 == 0:
+            msg_count = self._memory.get_user_message_count()
+            if msg_count % 3 == 0:
                 try:
                     await self._extract_profile()
+                except Exception:
+                    pass
+            if msg_count > 0 and msg_count % 5 == 0:
+                try:
+                    await self._snapshot_memory()
                 except Exception:
                     pass
             if self._memory.needs_compression():
@@ -654,6 +669,39 @@ Conversation:
         except Exception as exc:
             logger.warning("[MEMORY] Archive failed: %s", exc)
 
+    async def _snapshot_memory(self) -> None:
+        messages = self._memory.get_messages()
+        non_system = [m for m in messages if m.role != "system"]
+        if len(non_system) < 2:
+            return
+        recent = non_system[-4:]
+        summary = " | ".join(f"{m.role}: {m.content[:200]}" for m in recent if m.content)
+        try:
+            ensure_embedding()
+            emb = await get_embedding(summary)
+            ts = __import__("datetime").datetime.now().isoformat()
+            doc_id = f"snap_{int(__import__('time').time() * 1000)}"
+            await add_chunks(
+                self.id,
+                [
+                    {
+                        "doc_id": doc_id,
+                        "title": f"Session {ts[:10]}",
+                        "source": "conversation",
+                        "text": summary,
+                        "embedding": emb,
+                        "metadata": {
+                            "type": "memory",
+                            "session": self._memory.session_id,
+                            "timestamp": ts,
+                        },
+                    }
+                ],
+            )
+            logger.info("[MEMORY] Snapshot saved (%d messages)", len(non_system))
+        except Exception as exc:
+            logger.warning("[MEMORY] Snapshot failed: %s", exc)
+
     async def _recall_memories(self, message: str) -> str:
         try:
             ensure_embedding()
@@ -662,7 +710,7 @@ Conversation:
                 self.id,
                 emb,
                 message,
-                SearchOptions(top_k=5, metadata_filter={"type": "memory"}),
+                SearchOptions(top_k=3, metadata_filter={"type": "memory"}),
             )
             if not results:
                 return ""
@@ -670,7 +718,7 @@ Conversation:
             for r in results:
                 ts = r.chunk.metadata.get("timestamp", "")
                 prefix = f"[{ts[:10]}]" if ts else ""
-                parts.append(f"{prefix} {r.chunk.text}")
+                parts.append(f"{prefix} {r.chunk.text[:300]}")
             return "\n\n".join(parts)
         except Exception as exc:
             logger.warning("[MEMORY] Recall failed: %s", exc)
