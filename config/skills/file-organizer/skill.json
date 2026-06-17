@@ -1,0 +1,9 @@
+{
+  "id": "file-organizer",
+  "name": "File Organizer",
+  "description": "Read, write, edit, delete, and organize files in the workspace sandbox",
+  "version": "1.0.0",
+  "tools": ["read_file", "write_file", "edit_file", "delete_file", "list_files", "undo_file", "download_url"],
+  "provider": "",
+  "model": ""
+}

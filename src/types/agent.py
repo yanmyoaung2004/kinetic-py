@@ -15,6 +15,7 @@ class AgentCard:
     api_key: str = ""
     can_delegate: bool = False
     soul_path: str | None = None
+    tools: list[str] | None = None  # None = all tools, [] = no tools, [...] = only these
 
 
 class IAgent(Protocol):

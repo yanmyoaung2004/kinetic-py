@@ -1,0 +1,9 @@
+{
+  "id": "web-research",
+  "name": "Web Research",
+  "description": "Search the web, scrape pages, and index results for later reference",
+  "version": "1.0.0",
+  "tools": ["web_search", "scrape_and_index", "index_url", "query_knowledge_base", "knowledge_stats"],
+  "provider": "",
+  "model": ""
+}

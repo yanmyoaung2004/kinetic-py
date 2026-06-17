@@ -78,7 +78,7 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
 
     @app.get("/api/sessions")
     @app.post("/api/sessions")
-    async def sessions(request: Request | None = None) -> JSONResponse:
+    async def sessions(request: Request = None) -> JSONResponse:  # type: ignore[assignment]
         from src.agents.memory import AgentMemory
 
         assert request is not None

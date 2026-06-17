@@ -99,6 +99,50 @@ Edit `config/agents.json` to register your agents:
 
 Each agent has a `SOUL.md` file (`config/<agent-id>/SOUL.md`) that defines its personality and behavior directives. Edit these to customize how each agent responds.
 
+### 2.3a Tool Whitelist (per-agent)
+
+You can restrict which tools an agent has access to using the optional `"tools"` field:
+
+```json
+{
+  "registry": [
+    {
+      "id": "web-agent",
+      "name": "Web Research Agent",
+      "soulPath": "./web-agent/SOUL.md",
+      "provider": "openrouter",
+      "can_delegate": false,
+      "tools": ["web_search", "scrape_and_index", "index_url"]
+    },
+    {
+      "id": "full-agent",
+      "name": "Full Access Agent",
+      "soulPath": "./full-agent/SOUL.md",
+      "provider": "openrouter"
+    }
+  ]
+}
+```
+
+- If `"tools"` is **omitted or null**: agent gets all 37 tools (existing behavior)
+- If `"tools"` is **an empty list `[]`**: agent gets no tools (chat-only agent)
+- If `"tools"` lists specific tool names: agent only gets those
+
+**Available tool names:**
+
+| Category | Tools |
+|----------|-------|
+| **File** | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_files`, `undo_file` |
+| **Knowledge** | `query_knowledge_base`, `index_file`, `index_url`, `knowledge_stats` |
+| **Web** | `web_search`, `scrape_and_index`, `index_github`, `download_url` |
+| **Browser** | `browser_navigate`, `browser_click`, `browser_fill`, `browser_extract`, `browser_screenshot`, `browser_html`, `browser_close` |
+| **Email** | `read_emails`, `read_email_body`, `send_email`, `reply_to_email` |
+| **Code** | `execute_command`, `run_code` |
+| **System** | `get_system_info`, `read_env_var`, `get_current_time` |
+| **Schedule** | `schedule_task`, `create_monitor`, `list_monitors` |
+| **Communication** | `send_message`, `send_file`, `generate_image` |
+| **Pipeline** | `run_pipeline` |
+
 ### 2.4 Environment Variables
 
 Create a `.env` file in the `python-code/` directory:
@@ -167,7 +211,59 @@ kinetic-cli knowledge
 kinetic-cli pipelines
 ```
 
-### 3.3 Direct Python
+### 3.3 Skill Management
+
+The skill system lets you install focused sub-agents from a community repository:
+
+```bash
+# List installed skills
+kinetic-cli skills list
+
+# Install a skill (downloads + activates in agents.json)
+kinetic-cli skills install web-research
+kinetic-cli skills install file-organizer
+kinetic-cli skills install email-assistant
+kinetic-cli skills install code-runner
+kinetic-cli skills install scheduler
+
+# Install without auto-activating
+kinetic-cli skills install web-research --no-activate
+
+# Show skill details
+kinetic-cli skills info web-research
+
+# Remove a skill
+kinetic-cli skills remove web-research
+```
+
+You can also install from **any GitHub repo** using `--url`:
+
+```bash
+# Install from a GitHub repo (expects <repo>/<name>/skill.json)
+kinetic-cli skills install my-agent --url https://github.com/some-user/awesome-skills
+
+# Install from a direct raw URL
+kinetic-cli skills install custom --url https://raw.githubusercontent.com/user/repo/main/skills/my-folder
+```
+
+When you install a skill:
+1. It downloads the `skill.json` manifest + `SOUL.md` to `config/skills/<name>/`
+2. It adds an entry to `config/agents.json` registry (unless `--no-activate`)
+3. The entry includes the `"tools"` whitelist from the skill manifest
+
+**How skills work:** A skill is a sub-agent with its own system prompt (SOUL.md) and a restricted tool set. The `main` agent delegates to skill agents via the `spawn_specialist` tool. Skills are defined locally at `config/skills/<id>/` and fetched remotely from `github.com/kinetic-skills/skills` (configurable via `KINETIC_SKILLS_REPO` env var) or any URL via `--url`.
+
+**Starter skills shipped with the project:**
+
+| Skill | Tools | Purpose |
+|-------|-------|---------|
+| web-research | `web_search`, `scrape_and_index`, `index_url`, `query_knowledge_base`, `knowledge_stats` | Search the web, scrape pages, index results |
+| file-organizer | `read_file`, `write_file`, `edit_file`, `delete_file`, `list_files`, `undo_file`, `download_url` | Read, write, organize files in sandbox |
+| email-assistant | `read_emails`, `read_email_body`, `send_email`, `reply_to_email` | Read, send, reply to emails |
+| code-runner | `execute_command`, `run_code` | Run Python code and shell commands |
+| scheduler | `schedule_task`, `get_current_time`, `create_monitor`, `list_monitors` | Reminders, recurring tasks, monitors |
+
+### 3.4 Direct Python
 
 ```bash
 python -m src.main
@@ -274,7 +370,7 @@ User Input (Telegram / Web UI / CLI)
 
 **Data flow:** User → Dispatcher → Agent → LLM Provider (with failover) → Tools → Memory → Response
 
-**Tool categories (17 total):**
+**Tool categories (37 tools):**
 - **File ops:** read, write, edit, delete, undo, list
 - **Knowledge:** query, index file, index URL, stats
 - **System:** execute command, system info, download, env vars

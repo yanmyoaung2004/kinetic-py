@@ -1,0 +1,9 @@
+{
+  "id": "code-runner",
+  "name": "Code Runner",
+  "description": "Execute Python code and shell commands in a sandboxed environment",
+  "version": "1.0.0",
+  "tools": ["execute_command", "run_code"],
+  "provider": "",
+  "model": ""
+}

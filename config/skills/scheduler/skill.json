@@ -1,0 +1,9 @@
+{
+  "id": "scheduler",
+  "name": "Scheduler",
+  "description": "Create reminders, scheduled tasks, and recurring monitors that check conditions",
+  "version": "1.0.0",
+  "tools": ["schedule_task", "get_current_time", "create_monitor", "list_monitors"],
+  "provider": "",
+  "model": ""
+}

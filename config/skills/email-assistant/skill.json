@@ -1,0 +1,9 @@
+{
+  "id": "email-assistant",
+  "name": "Email Assistant",
+  "description": "Read, search, send, and reply to emails via IMAP/SMTP",
+  "version": "1.0.0",
+  "tools": ["read_emails", "read_email_body", "send_email", "reply_to_email"],
+  "provider": "",
+  "model": ""
+}

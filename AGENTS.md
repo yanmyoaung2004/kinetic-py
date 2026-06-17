@@ -8,6 +8,10 @@ playwright install chromium     # install headless browser (once)
 kinetic                          # run bot + API + scheduler (requires TELEGRAM_BOT_TOKEN)
 kinetic-cli models               # configure providers / stage routing
 kinetic-cli onboard              # first-time setup wizard
+kinetic-cli skills list          # show installed skills
+kinetic-cli skills install <n>   # install skill from community repo
+kinetic-cli skills remove <n>    # uninstall a skill
+kinetic-cli skills info <n>      # show skill manifest details
 pytest                          # all tests (asyncio_mode = auto) — 89 tests
 ruff check .                    # lint (line-length 120, select E/F/I/N/W/UP)
 mypy src/                       # typecheck (non-strict, ignore_missing_imports)
@@ -24,6 +28,8 @@ pytest tests/test_provider.py::test_fallback_all_fail -xvs
 - **Entrypoints**: `kinetic` → `src.main:main` (Telegram bot + FastAPI + scheduler in one event loop); `kinetic-cli` → `src.cli:main` (click CLI)
 - **Config**: `config/models.json` (providers, stage routing), `config/agents.json` (agent registry). Copy from `.example.json` files.
 - **SOUL files**: `config/<agent-id>/SOUL.md` — system prompt per agent
+- **Skills**: `config/skills/<id>/skill.json` (manifest) + `SOUL.md` — installable sub-agent packs with tool whitelists
+- **Tool whitelist**: agents can restrict tools via `"tools"` array in `agents.json` — `null` = all tools, `[]` = no tools, `["a","b"]` = only those
 - **Workspace**: `agents_workspace/` — created at runtime for memory, knowledge base, task data
 - **Knowledge base**: disk-based vector store at `agents_workspace/<agentId>/knowledge/store.json`
 - **Memory**: JSONL at `agents_workspace/<agentId>/history.jsonl`, capped at 500 messages
@@ -43,6 +49,7 @@ pytest tests/test_provider.py::test_fallback_all_fail -xvs
 | **Automation** | schedule_task, get_current_time, create_monitor, list_monitors |
 | **System** | get_system_info, read_env_var, web_search |
 | **Agent** | spawn_specialist, send_message, run_pipeline |
+| **Skills** | kinetic-cli skills list/install/remove/info |
 | **Data** | index_github, scrape_and_index |
 
 ## Key conventions

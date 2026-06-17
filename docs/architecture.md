@@ -239,6 +239,28 @@ Single-page application with tabs:
 
 ---
 
+### 12. Skill System (`src/skills/`, `src/cli/skills.py`)
+
+The skill system turns **sub-agents into installable plugins**:
+
+**Architecture:**
+- A **skill** = a directory with `skill.json` (manifest) + `SOUL.md` (system prompt)
+- Installed skills live at `config/skills/<id>/`
+- `kinetic-cli skills install <name>` fetches from a community GitHub repo (`github.com/kinetic-skills/skills`) and adds an entry to `config/agents.json`
+- Skills auto-register with the `"tools"` whitelist from their manifest
+
+**Tool Whitelist (`AgentCard.tools`):**
+- New field on `AgentCard`: `tools: list[str] | None`
+- `None` = unrestricted (all 37 tools)
+- `[]` = no tools (chat-only)
+- `["web_search", "index_url"]` = only those tools
+- Filtered at registration time in `AgentInstance._register_tool()` in `src/agents/agent.py`
+- The agents.json `"tools"` array is normalized to lowercase on load
+
+**Community repo:** `https://github.com/kinetic-skills/skills` (configurable via `KINETIC_SKILLS_REPO` env var). Each skill is a subdirectory with `skill.json` + `SOUL.md` at the root of the repo.
+
+---
+
 ## Configuration Files
 
 ### `src/config/models.json`

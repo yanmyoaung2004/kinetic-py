@@ -18,35 +18,50 @@
 - **User profile extraction** — every 3 user messages, background LLM call extracts facts. Profile injected as system prompt on every init, survives restarts
 - **All background tasks deferred** — profile extraction, compression, and evolution run via `setImmediate()` after the response is returned. Never blocks the user-facing reply.
 
-## Tool system — 20 tools
+## Tool system — 37 tools
 
-All tool definitions passed to the LLM each iteration; LLM decides which to call.
+All tool definitions passed to the LLM each iteration; LLM decides which to call. Tools can be restricted per-agent via the `"tools"` whitelist in `agents.json`.
 
 | Tool | Condition | Description |
 |---|---|---|
-| `get_current_time` | Always | Current date/time |
-| `get_system_info` | Always | OS, hostname, CPU, RAM, disk |
-| `read_env_var` | Always | Env var value (sensitive keys masked) |
 | `read_file` | Always | Read file from sandbox |
 | `write_file` | Always | Write file to sandbox (backup before overwrite) |
 | `edit_file` | Always | Find+replace in file (backup before edit) |
 | `delete_file` | Always | Delete file from sandbox (backup before delete) |
-| `undo_file` | Always | Restore most recent backup |
 | `list_files` | Always | List sandbox directory contents |
+| `undo_file` | Always | Restore most recent backup |
 | `download_url` | Always | Download URL to sandbox (5MB, 30s) |
 | `execute_command` | Always | Whitelisted system commands |
-| `web_search` | `BRAVE_API_KEY` | Brave Search API |
+| `run_code` | Always | Run Python code in sandbox |
+| `send_file` | Always | Send file to user via Telegram |
 | `get_current_time` | Always | Current date/time |
+| `get_system_info` | Always | OS, hostname, CPU, RAM, disk |
+| `read_env_var` | Always | Env var value (sensitive keys masked) |
 | `schedule_task` | Always | One-time and recurring reminders |
+| `create_monitor` | Always | Create recurring condition monitor |
+| `list_monitors` | Always | List active monitors |
+| `run_pipeline` | Always | Execute a multi-agent pipeline |
+| `spawn_specialist` | `can_delegate: true` | Ephemeral sub-agent |
+| `send_message` | 2+ agents | Inter-agent message |
+| `generate_image` | Image provider configured | Generate images from prompts |
+| `web_search` | `BRAVE_API_KEY` | Brave Search API |
 | `query_knowledge_base` | Embedding configured | Semantic search over indexed content |
 | `index_file` | Embedding configured | Index a sandbox file into knowledge base |
 | `index_url` | Embedding configured | Fetch URL and index into knowledge base |
 | `index_github` | Embedding configured | Fetch GitHub file/repo and index |
 | `scrape_and_index` | Embedding configured | Scrape web page and index |
 | `knowledge_stats` | Embedding configured | Show knowledge base stats |
-| `run_pipeline` | Always | Execute a multi-agent pipeline |
-| `spawn_specialist` | `can_delegate: true` | Ephemeral sub-agent |
-| `send_message` | 2+ agents | Inter-agent message |
+| `read_emails` | Email configured | Read recent emails |
+| `read_email_body` | Email configured | Read full email content |
+| `send_email` | Email configured | Send email |
+| `reply_to_email` | Email configured | Reply to email |
+| `browser_navigate` | Always | Navigate to a URL |
+| `browser_click` | Always | Click element via CSS selector |
+| `browser_fill` | Always | Fill input field |
+| `browser_extract` | Always | Extract text via CSS selector |
+| `browser_screenshot` | Always | Take page screenshot |
+| `browser_html` | Always | Get page HTML |
+| `browser_close` | Always | Close the browser |
 
 ## Knowledge base (RAG)
 

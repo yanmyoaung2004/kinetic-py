@@ -87,7 +87,10 @@ def create_execute_command_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "execute_command",
-                "description": "Runs a whitelisted system command in a sandboxed environment.",
+                "description": (
+                    "Runs a whitelisted system command with path-escape and shell-chaining protection. "
+                    "Only pre-approved commands are allowed. Use run_code for arbitrary Python execution."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {

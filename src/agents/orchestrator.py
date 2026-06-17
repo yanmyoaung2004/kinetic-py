@@ -56,6 +56,10 @@ class KinetiCDispatcher:
                     logger.warning("[!] Soul missing for %s: %s", agent_data["id"], soul_path)
 
             available = list(self._model_config.providers.keys())
+            tools_list = agent_data.get("tools")
+            if isinstance(tools_list, list):
+                tools_list = [t.lower() for t in tools_list]
+
             self.register_agent(
                 AgentCard(
                     id=agent_data["id"],
@@ -70,6 +74,7 @@ class KinetiCDispatcher:
                     soul_path=str((config_dir / agent_data["soulPath"]).resolve())
                     if agent_data.get("soulPath")
                     else None,
+                    tools=tools_list,
                 )
             )
         logger.info("[DISPATCHER] Registered %d agents from config.", len(data.get("registry", [])))

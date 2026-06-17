@@ -56,6 +56,7 @@ from src.agents.tools.registry import (
 )
 from src.agents.tools.schedule_task import create_get_time_tool, create_schedule_task_tool
 from src.agents.tools.send_file_tool import create_send_file_tool
+from src.agents.tools.skills_tool import create_list_skills_tool
 from src.agents.tools.system_tools import (
     create_download_url_tool,
     create_get_system_info_tool,
@@ -107,6 +108,8 @@ GLOBAL_PROTOCOLS = """
   "just in case" or as a side effect.
 - IMPORTANT: When the user shares URLs, do not index them unless
   they explicitly say "save this to my knowledge" or "index this".
+- If the user asks what skills, plugins, or capabilities you have,
+  use the list_skills tool to show installed skill packs.
 """
 
 
@@ -188,9 +191,10 @@ class AgentInstance(IAgent):
 
         # Build tool registry
         self._tools = ToolRegistry()
+        self._allowed_tools = set(t.lower() for t in self.config.tools) if self.config.tools else None
 
         if self.config.type == "library" and self.config.can_delegate:
-            self._tools.register(
+            self._register_tool(
                 ToolHandler(
                     definition=SPAWN_SPECIALIST_DEF,
                     execute=lambda args, ctx: self._execute_spawn_specialist(args),
@@ -202,59 +206,67 @@ class AgentInstance(IAgent):
             async def dispatch_fn(target: str, msg: str, depth: int) -> str:
                 return await self._dispatcher.dispatch(target, msg, depth)
 
-            self._tools.register(create_send_message_tool(dispatch_fn))
+            self._register_tool(create_send_message_tool(dispatch_fn))
 
         if os.environ.get("BRAVE_API_KEY"):
-            self._tools.register(create_web_search_tool())
+            self._register_tool(create_web_search_tool())
 
-        self._tools.register(create_execute_command_tool())
-        self._tools.register(create_read_file_tool())
-        self._tools.register(create_write_file_tool())
-        self._tools.register(create_edit_file_tool())
-        self._tools.register(create_delete_file_tool())
-        self._tools.register(create_list_files_tool())
-        self._tools.register(create_undo_file_tool())
-        self._tools.register(create_schedule_task_tool(self.id))
-        self._tools.register(create_get_time_tool())
-        self._tools.register(create_get_system_info_tool())
-        self._tools.register(create_download_url_tool())
-        self._tools.register(create_read_env_var_tool())
-        self._tools.register(create_query_knowledge_tool(self.id))
-        self._tools.register(create_index_file_tool(self.id))
-        self._tools.register(create_index_url_tool(self.id))
-        self._tools.register(create_knowledge_stats_tool(self.id))
-        self._tools.register(
+        self._register_tool(create_execute_command_tool())
+        self._register_tool(create_read_file_tool())
+        self._register_tool(create_write_file_tool())
+        self._register_tool(create_edit_file_tool())
+        self._register_tool(create_delete_file_tool())
+        self._register_tool(create_list_files_tool())
+        self._register_tool(create_undo_file_tool())
+        self._register_tool(create_schedule_task_tool(self.id))
+        self._register_tool(create_get_time_tool())
+        self._register_tool(create_get_system_info_tool())
+        self._register_tool(create_download_url_tool())
+        self._register_tool(create_read_env_var_tool())
+        self._register_tool(create_query_knowledge_tool(self.id))
+        self._register_tool(create_index_file_tool(self.id))
+        self._register_tool(create_index_url_tool(self.id))
+        self._register_tool(create_knowledge_stats_tool(self.id))
+        self._register_tool(
             create_run_pipeline_tool(
                 lambda agent_id, msg, depth=None: self._dispatcher.dispatch(agent_id, msg, depth or 0)  # type: ignore[misc]
             )
         )
-        self._tools.register(create_github_index_tool(self.id))
-        self._tools.register(create_web_scraper_tool(self.id))
+        self._register_tool(create_github_index_tool(self.id))
+        self._register_tool(create_web_scraper_tool(self.id))
         # Browser tools
-        self._tools.register(create_browser_navigate_tool())
-        self._tools.register(create_browser_click_tool())
-        self._tools.register(create_browser_fill_tool())
-        self._tools.register(create_browser_extract_tool())
-        self._tools.register(create_browser_screenshot_tool())
-        self._tools.register(create_browser_html_tool())
-        self._tools.register(create_browser_close_tool())
-        self._tools.register(create_send_file_tool())
+        self._register_tool(create_browser_navigate_tool())
+        self._register_tool(create_browser_click_tool())
+        self._register_tool(create_browser_fill_tool())
+        self._register_tool(create_browser_extract_tool())
+        self._register_tool(create_browser_screenshot_tool())
+        self._register_tool(create_browser_html_tool())
+        self._register_tool(create_browser_close_tool())
+        self._register_tool(create_send_file_tool())
         # Monitors
-        self._tools.register(create_create_monitor_tool(self.id))
-        self._tools.register(create_list_monitors_tool(self.id))
+        self._register_tool(create_create_monitor_tool(self.id))
+        self._register_tool(create_list_monitors_tool(self.id))
         # Email
-        self._tools.register(create_read_emails_tool())
-        self._tools.register(create_read_email_body_tool())
-        self._tools.register(create_send_email_tool())
-        self._tools.register(create_reply_email_tool())
+        self._register_tool(create_read_emails_tool())
+        self._register_tool(create_read_email_body_tool())
+        self._register_tool(create_send_email_tool())
+        self._register_tool(create_reply_email_tool())
         # Code execution
-        self._tools.register(create_run_code_tool())
+        self._register_tool(create_run_code_tool())
         # Image generation
-        self._tools.register(create_generate_image_tool())
+        self._register_tool(create_generate_image_tool())
+        # Skills discovery
+        self._register_tool(create_list_skills_tool())
 
         logger.info(
             "[SYSTEM] Initialized: %s [%s] tools=%d", self.id, self.config.type, len(self._tools.get_definitions())
         )
+
+    def _register_tool(self, handler: ToolHandler) -> None:
+        name = handler.definition.function["name"]
+        if self._allowed_tools is not None and name not in self._allowed_tools:
+            return
+        self._tools.register(handler)
 
     def dispose(self) -> None:
         if self.config.type == "ephemeral":

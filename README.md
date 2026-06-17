@@ -20,7 +20,33 @@ kinetic
 # Or run components separately:
 kinetic-cli knowledge     # Manage knowledge base
 kinetic-cli pipelines     # Manage pipelines
+kinetic-cli skills        # Manage installable skill packs
 ```
+
+## Skills (Plugin System)
+
+K.I.N.E.T.I.C. has a skill system — installable sub-agents with focused tool sets:
+
+```bash
+# Install from community repo
+kinetic-cli skills install web-research
+kinetic-cli skills install email-assistant
+kinetic-cli skills install code-runner
+
+# Install from any GitHub repo
+kinetic-cli skills install my-skill --url https://github.com/user/awesome-skills
+
+# List installed skills
+kinetic-cli skills list
+
+# Show skill details
+kinetic-cli skills info web-research
+
+# Remove a skill
+kinetic-cli skills remove web-research
+```
+
+Skills are sub-agents with their own `SOUL.md` (system prompt) and a tool whitelist — each only gets the tools it needs. They auto-register in `config/agents.json` on install. See `docs/setup.md` for details.
 
 ## Architecture
 
