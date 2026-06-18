@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
+
+logger = logging.getLogger("kinetic.opencode")
 from typing import Any
 
 from src.agents.tools.registry import ToolContext, ToolHandler
 from src.types.agent import ToolDefinition
 
-DEFAULT_DIR = os.environ.get("OPENCODE_PROJECT_DIR", ".")
-DEFAULT_MODEL = os.environ.get("OPENCODE_DEFAULT_MODEL", "")  # empty = let OpenCode decide
-WORKSPACE = os.environ.get("OPENCODE_WORKSPACE", "")  # e.g., "D:/Projects"
+
 
 
 async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
@@ -22,11 +23,12 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
     if not task:
         return "ERROR: 'task' parameter is required."
 
-    model = args.get("model") or DEFAULT_MODEL
+    model = args.get("model") or os.environ.get("OPENCODE_DEFAULT_MODEL", "")
     project_name = args.get("project", "").strip()
+    workspace = os.environ.get("OPENCODE_WORKSPACE", "")
 
     # Resolve project directory
-    if WORKSPACE:
+    if workspace:
         # Auto-name: first significant word from task, or "project"
         if not project_name:
             import re as _re
@@ -35,10 +37,11 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
                     "implement", "simple", "me", "a", "an", "the", "new"}
             filtered = [w for w in words if w.lower() not in stop]
             project_name = (filtered[0] if filtered else "project").lower()
-        project_path = (Path(WORKSPACE) / project_name).resolve()
+        project_path = (Path(workspace) / project_name).resolve()
         project_path.mkdir(parents=True, exist_ok=True)
+        logger.info("[OPENCODE] Working in %s", project_path)
     else:
-        project_dir = (args.get("dir") or DEFAULT_DIR).strip()
+        project_dir = (args.get("dir") or os.environ.get("OPENCODE_PROJECT_DIR", ".")).strip()
         project_path = Path(project_dir).resolve()
         if not project_path.is_dir():
             return f"ERROR: Project directory not found: {project_dir}"

@@ -234,6 +234,7 @@ class AgentInstance(IAgent):
         self._mode = mode
         self._current_chat_id: int | None = None
         self._pending_coding_task: Any = None
+        self._pending_opencode_task: Any = None
         self._MAX_ITERATIONS = 5
 
         self._think_providers = _create_think_providers(think_stage, endpoints)
@@ -459,11 +460,14 @@ class AgentInstance(IAgent):
 
             if is_coding and wants_opencode:
                 from src.agents.tools.opencode_tool import _call_opencode
-                logger.info("[AUTO_OPENCODE] Routing to OpenCode...")
-                result = await _call_opencode({"task": message}, ToolContext(chat_id=self._current_chat_id))
-                if result:
-                    self._memory.append(ChatMessage(role="system", content="[opencode handled this task]"))
-                    return result
+                logger.info("[AUTO_OPENCODE] Starting OpenCode in background...")
+
+                # Store OpenCode as pending background task
+                self._pending_opencode_task = asyncio.create_task(
+                    self._run_opencode(message)
+                )
+
+                return "Let me have OpenCode handle this... You can keep chatting while it works!"
 
             if is_coding and not wants_opencode:
                 logger.info("[AUTO_DELEGATE] Routing to coding-assistant...")
@@ -734,6 +738,19 @@ class AgentInstance(IAgent):
         except Exception as e:
             logger.warning("[AUTO_DELEGATE] Failed: %s", e)
             return None
+
+    async def _run_opencode(self, message: str) -> str:
+        """Run OpenCode in background and store result."""
+        from src.agents.tools.opencode_tool import _call_opencode
+        try:
+            result = await _call_opencode({"task": message}, ToolContext(chat_id=self._current_chat_id))
+            if result:
+                self._memory.append(ChatMessage(role="system", content="[opencode handled this task]"))
+            return result or "OpenCode returned no result."
+        except Exception as e:
+            err = f"OpenCode failed: {e}"
+            logger.warning(err)
+            return err
 
     async def _run_think_loop(self, current_depth: int) -> str:
         tools = self._tools.get_definitions()
