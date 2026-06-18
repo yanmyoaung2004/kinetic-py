@@ -88,3 +88,59 @@ OPENCODE_DEFAULT_MODEL=go/sonnet
 - All tool output captured internally by `call_opencode`
 - Only the final summary (files changed, diff) reaches the main agent's conversation
 - The main agent doesn't see individual tool calls or file reads
+
+## Test Prompts
+
+### OpenCode (complex, project-level)
+
+```
+add a health check endpoint to the server
+```
+→ Asks: "Use OpenCode or write a quick script?"
+→ Reply: "yes" → runs OpenCode
+
+```
+implement a user login feature with JWT — project: MyApp
+```
+→ Routes to OpenCode in workspace/MyApp/
+
+```
+add a database migration for the users table
+```
+→ Asks → "yes" → OpenCode handles it
+
+### coding-assistant (simple scripts)
+
+```
+write a python function to check if a number is prime
+```
+→ Goes directly to coding-assistant (no ask)
+
+```
+create a script to download weather data
+```
+→ Goes directly to coding-assistant
+
+### Apply / Reject (after OpenCode runs)
+
+```
+apply the changes
+```
+→ Commits with git
+
+```
+reject the changes
+```
+→ Discards with git checkout
+
+```
+show me the diff
+```
+→ Shows pending diff
+
+### Working directory
+
+```
+add rate limiting middleware — project: kinetic
+```
+→ Creates folder in OPENCODE_WORKSPACE/kinetic/ and runs OpenCode there

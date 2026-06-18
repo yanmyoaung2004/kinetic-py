@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import subprocess
@@ -25,8 +26,15 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
     project_name = args.get("project", "").strip()
 
     # Resolve project directory
-    if project_name and WORKSPACE:
-        # Create/use project folder inside workspace
+    if WORKSPACE:
+        # Auto-name: first significant word from task, or "project"
+        if not project_name:
+            import re as _re
+            words = _re.findall(r"[a-zA-Z]\w+", task)
+            stop = {"opencode", "write", "create", "make", "build",
+                    "implement", "simple", "me", "a", "an", "the", "new"}
+            filtered = [w for w in words if w.lower() not in stop]
+            project_name = (filtered[0] if filtered else "project").lower()
         project_path = (Path(WORKSPACE) / project_name).resolve()
         project_path.mkdir(parents=True, exist_ok=True)
     else:
@@ -35,24 +43,29 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
         if not project_path.is_dir():
             return f"ERROR: Project directory not found: {project_dir}"
 
-    # Build opencode command
-    cmd = ["opencode", "run", "--dangerously-skip-permissions", "--format", "json"]
+    # Use the .cmd shim directly (Windows npm installs .cmd, not .exe)
+    opencode_cmd = r"C:\Users\YMA\AppData\Roaming\npm\opencode.cmd"
+    cmd = [opencode_cmd, "run", "--dangerously-skip-permissions", "--format", "json"]
     if model:
         cmd += ["--model", model]
     cmd.append(task)
 
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True, text=True, timeout=300,  # 5 min timeout
-            cwd=project_path,
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(project_path),
         )
-    except subprocess.TimeoutExpired:
-        return "ERROR: OpenCode task timed out after 5 minutes."
+        try:
+            stdout_bytes, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
+        except TimeoutError:
+            proc.kill()
+            return "ERROR: OpenCode task timed out after 5 minutes."
     except FileNotFoundError:
-        return "ERROR: 'opencode' not found in PATH. Install OpenCode first."
+        return "ERROR: 'opencode' not found. Install OpenCode first."
 
-    stdout = proc.stdout or ""
+    stdout = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
 
     # Parse JSON events
     files_changed: list[dict[str, str]] = []
@@ -209,7 +222,7 @@ def create_call_opencode_tool() -> ToolHandler:
             function={
                 "name": "call_opencode",
                 "description": (
-                    "Delegate a complex coding task to OpenCode (Go)."
+                    "Delegate a complex coding task to Coding Agent."
                     " Use for multi-file features, refactoring, architecture changes."
                     " For simple scripts/functions, use run_code instead."
                 ),

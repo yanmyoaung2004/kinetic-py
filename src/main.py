@@ -121,18 +121,28 @@ def _convert_markdown(text: str) -> str:
 
 async def _send_long_message(msg: Any, text: str, parse_mode: str | None = "HTML") -> None:
     """Split long messages and send in chunks to avoid Telegram's 4096-char limit."""
+    import html as _html
+    import re as _re
+
     max_len = 4000
     if len(text) <= max_len:
-        await msg.reply_text(text, parse_mode=parse_mode)
+        try:
+            await msg.reply_text(text, parse_mode=parse_mode)
+        except Exception:
+            plain = _html.unescape(_re.sub(r"<[^>]+>", "", text))
+            await msg.reply_text(plain)
         return
     while text:
         chunk = text[:max_len]
-        # Try to break at a newline for cleaner splits
         if len(text) > max_len:
             break_at = chunk.rfind("\n")
             if break_at > max_len // 2:
                 chunk = chunk[:break_at]
-        await msg.reply_text(chunk, parse_mode=parse_mode)
+        try:
+            await msg.reply_text(chunk, parse_mode=parse_mode)
+        except Exception:
+            plain = _html.unescape(_re.sub(r"<[^>]+>", "", chunk))
+            await msg.reply_text(plain)
         text = text[len(chunk):].lstrip()
 
 

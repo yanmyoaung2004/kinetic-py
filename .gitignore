@@ -38,3 +38,6 @@ build/
 # External skill repos
 ppt-master/
 test_oc.txt
+# OpenCode project folders
+*/
+# OpenCode auto-generated projects (in workspace, not in repo)

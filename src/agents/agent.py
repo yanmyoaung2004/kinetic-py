@@ -364,8 +364,10 @@ class AgentInstance(IAgent):
         self._register_tool(create_generate_image_tool())
         self._register_tool(create_image_search_tool())
         self._register_tool(create_youtube_info_tool())
-        self._register_tool(create_call_opencode_tool())
-        self._register_tool(create_apply_opencode_tool())
+        # OpenCode tools only for main agent
+        if agent_id == "main":
+            self._register_tool(create_call_opencode_tool())
+            self._register_tool(create_apply_opencode_tool())
         self._register_tool(create_weather_tool())
         self._register_tool(create_news_tool())
         self._register_tool(create_daily_briefing_tool())
@@ -441,44 +443,30 @@ class AgentInstance(IAgent):
             if briefing and not briefing.startswith("ERROR"):
                 return briefing
 
-        # Pre-process: delegate coding tasks (only from main agent, not sub-agents)
+        # Pre-process: route coding requests
+        # If user says "opencode" → use OpenCode (project-level)
+        # Otherwise → use coding-assistant (quick scripts in Docker)
         if current_depth == 0:
-            lowered = message.lower()
-            # Route complex project tasks to OpenCode (word-level matching)
             import re as _re
-            complex_indicators = {"add", "refactor", "implement", "create", "update",
-                                  "restructure", "redesign", "rewrite", "build", "migrate"}
-            complex_targets = {"endpoint", "route", "api", "feature", "component",
-                               "module", "migration", "schema", "model", "middleware",
-                               "auth", "authentication", "authorization", "database",
-                               "service", "controller", "handler"}
+            lowered = message.lower()
             words = set(_re.findall(r"[a-z]+", lowered))
-            has_indicator = bool(words & complex_indicators)
-            has_target = bool(words & complex_targets)
-            logger.info("[CHECK] opencode: indicator=%s target=%s words=%s", has_indicator, has_target, words)
-            if has_indicator and has_target:
+            is_coding = bool(words & {"write", "create", "implement", "build", "make",
+                                       "function", "script", "code", "program", "class",
+                                       "module", "test", "api", "endpoint", "route",
+                                       "auth", "authentication", "middleware", "service",
+                                       "python", "javascript", "typescript", "bash", "shell"})
+            wants_opencode = "opencode" in lowered or "open code" in lowered
+
+            if is_coding and wants_opencode:
                 from src.agents.tools.opencode_tool import _call_opencode
-                logger.info("[AUTO_OPENCODE] Sending to opencode...")
-                # Extract project name from " — project: Name" suffix
-                import re as _re2
-                proj_match = _re2.search(r"(?:--project|project)[:\s]+(\S+)", message)
-                proj_name = proj_match.group(1) if proj_match else ""
-                task_clean = _re2.sub(r"\s*[-–—]+-?\s*(?:project|--project)[:\s]+\S+", "", message).strip()
-                result = await _call_opencode(
-                    {"task": task_clean, "project": proj_name},
-                    ToolContext(chat_id=self._current_chat_id),
-                )
-                if result and not result.startswith("ERROR"):
+                logger.info("[AUTO_OPENCODE] Routing to OpenCode...")
+                result = await _call_opencode({"task": message}, ToolContext(chat_id=self._current_chat_id))
+                if result:
                     self._memory.append(ChatMessage(role="system", content="[opencode handled this task]"))
                     return result
 
-            # Route simple coding tasks to coding-assistant
-            has_write = any(w in lowered for w in ("write", "create", "debug", "fix"))
-            has_coding = any(w in lowered for w in ("function", "script", "code", "program",
-                                                      "class", "module", "test", "implement",
-                                                      "python", "javascript", "typescript",
-                                                      "bash", "shell", "algorithm"))
-            if has_write and has_coding:
+            if is_coding and not wants_opencode:
+                logger.info("[AUTO_DELEGATE] Routing to coding-assistant...")
                 code_result = await self._auto_delegate_coding(message)
                 if code_result:
                     return code_result
