@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC
+
 from pathlib import Path
 
 import pytest
@@ -170,7 +170,7 @@ class TestScheduleTask:
     def test_parse_time_to_delay_iso(self):
         from datetime import datetime, timedelta
 
-        future = (datetime.now(UTC) + timedelta(hours=2)).isoformat()
+        future = (datetime.now() + timedelta(hours=2)).isoformat()
         delay = _parse_time_to_delay(future)
         assert delay is not None
         assert delay > 0

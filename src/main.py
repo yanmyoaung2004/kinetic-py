@@ -119,6 +119,23 @@ def _convert_markdown(text: str) -> str:
     return text
 
 
+async def _send_long_message(msg: Any, text: str, parse_mode: str | None = "HTML") -> None:
+    """Split long messages and send in chunks to avoid Telegram's 4096-char limit."""
+    max_len = 4000
+    if len(text) <= max_len:
+        await msg.reply_text(text, parse_mode=parse_mode)
+        return
+    while text:
+        chunk = text[:max_len]
+        # Try to break at a newline for cleaner splits
+        if len(text) > max_len:
+            break_at = chunk.rfind("\n")
+            if break_at > max_len // 2:
+                chunk = chunk[:break_at]
+        await msg.reply_text(chunk, parse_mode=parse_mode)
+        text = text[len(chunk):].lstrip()
+
+
 async def _typing_indicator(chat: Chat, task: asyncio.Task) -> None:
     """Keep the typing indicator alive until the task finishes."""
     while not task.done():
@@ -351,9 +368,7 @@ class KinetiCBot:
         try:
             response = await task
             safe = _convert_markdown(response or "(no response)")
-            if len(safe) > 4000:
-                safe = safe[:4000] + "\n\n... (truncated)"
-            await msg.reply_text(safe, parse_mode="HTML")
+            await _send_long_message(msg, safe)
             await self._send_pending_files(chat_id, update)
 
             # Check if agent has a pending coding task (for follow-up result)
@@ -367,7 +382,8 @@ class KinetiCBot:
                     if coding_result:
                         safe_result = _convert_markdown(coding_result or "")
                         if safe_result:
-                            await msg.reply_text(safe_result, parse_mode="HTML")
+                            labeled = f"<b>From coding-assistant:</b>\n{safe_result}"
+                            await _send_long_message(msg, labeled)
                             await self._send_pending_files(chat_id, update)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
@@ -438,7 +454,7 @@ class KinetiCBot:
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
             response = await task
             safe = _convert_markdown(response)
-            await msg.reply_text(safe, parse_mode="HTML")
+            await _send_long_message(msg, safe)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
         except Exception as e:

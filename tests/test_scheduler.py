@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.agents.tasks.scheduler import (
@@ -24,7 +24,7 @@ class TestScheduler:
                 {
                     "description": "Test task",
                     "type": "once",
-                    "next_run": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+                    "next_run": (datetime.now() + timedelta(hours=1)).isoformat(),
                     "dispatch_to": "test-agent",
                     "query": "run test",
                 },
@@ -49,7 +49,7 @@ class TestScheduler:
                 {
                     "description": "To remove",
                     "type": "once",
-                    "next_run": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+                    "next_run": (datetime.now() + timedelta(hours=1)).isoformat(),
                     "dispatch_to": "test-agent",
                     "query": "remove me",
                 },
@@ -71,7 +71,7 @@ class TestScheduler:
                 {
                     "description": "Past task",
                     "type": "once",
-                    "next_run": (datetime.now(UTC) - timedelta(minutes=5)).isoformat(),
+                    "next_run": (datetime.now() - timedelta(minutes=5)).isoformat(),
                     "dispatch_to": "test-agent",
                     "query": "past",
                 },
@@ -81,7 +81,7 @@ class TestScheduler:
                 {
                     "description": "Future task",
                     "type": "once",
-                    "next_run": (datetime.now(UTC) + timedelta(hours=5)).isoformat(),
+                    "next_run": (datetime.now() + timedelta(hours=5)).isoformat(),
                     "dispatch_to": "test-agent",
                     "query": "future",
                 },
@@ -104,7 +104,7 @@ class TestScheduler:
                 {
                     "description": "One time",
                     "type": "once",
-                    "next_run": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
+                    "next_run": (datetime.now() - timedelta(minutes=1)).isoformat(),
                     "dispatch_to": "test-agent",
                     "query": "once",
                 },
@@ -126,7 +126,7 @@ class TestScheduler:
                     "description": "Recurring",
                     "type": "interval",
                     "interval_ms": 60000,
-                    "next_run": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
+                    "next_run": (datetime.now() - timedelta(minutes=1)).isoformat(),
                     "dispatch_to": "test-agent",
                     "query": "interval",
                 },
@@ -137,7 +137,7 @@ class TestScheduler:
             assert tasks[0].last_run is not None
             # next_run should be advanced
             next_time = datetime.fromisoformat(tasks[0].next_run)
-            assert next_time > datetime.now(UTC) - timedelta(seconds=10)
+            assert next_time > datetime.now() - timedelta(seconds=10)
         finally:
             os.chdir(original_cwd)
 

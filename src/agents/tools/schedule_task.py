@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from src.agents.tasks.scheduler import add_task
 from src.agents.tools.registry import ToolContext, ToolHandler
@@ -9,7 +9,7 @@ from src.types.agent import ToolDefinition
 
 
 def _parse_time_to_delay(time_str: str) -> int | None:
-    now = datetime.now(UTC)
+    now = datetime.now()
     lower = time_str.lower().strip()
 
     # ISO format
@@ -87,7 +87,7 @@ async def _do_schedule(agent_id: str, args: dict, ctx: ToolContext | None) -> st
 
     interval_minutes = args.get("interval_minutes") or 0
     interval_ms = interval_minutes * 60_000 if interval_minutes else None
-    next_run = (datetime.now(UTC) + timedelta(milliseconds=delay_ms)).isoformat()
+    next_run = (datetime.now() + timedelta(milliseconds=delay_ms)).isoformat()
 
     task = add_task(
         agent_id,
