@@ -34,3 +34,6 @@ htmlcov/
 dist/
 build/
 *.whl
+
+# External skill repos
+ppt-master/
