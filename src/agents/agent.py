@@ -105,9 +105,13 @@ GLOBAL_PROTOCOLS = """
 - Never create files unless the user explicitly asks.
 - When the user shares URLs, don't index them unless asked.
 - If a tool call fails, don't retry it with the same arguments — tell the user.
-- Use tools when needed, but don't call them for things you already know.
 - When the user asks about emails, always call read_emails to fetch fresh data.
   Do not rely on what you remember from previous conversations — inboxes change.
+- When the user asks about their Obsidian vault, notes, or to find related content,
+  you MUST use obsidian_search or obsidian_suggest_links.
+  DO NOT answer from your training data — your vault is the source of truth.
+- For "suggest links" or "find related notes" requests, call obsidian_suggest_links
+  with the topic text. It searches the actual vault notes by keyword.
 """
 
 

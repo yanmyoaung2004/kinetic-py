@@ -457,8 +457,10 @@ def create_obsidian_suggest_links_tool() -> ToolHandler:
             function={
                 "name": "obsidian_suggest_links",
                 "description": (
-                    "Analyze text and suggest related [[wikilinks]] to existing vault notes"
-                    " based on keyword matching."
+                    "SEARCH YOUR OBSIDIAN VAULT for notes related to the given text."
+                    " Use this when the user asks to find or suggest links,"
+                    " resources, or related notes about a topic."
+                    " Returns [[wikilinks]] to matching vault notes."
                 ),
                 "parameters": {
                     "type": "object",
