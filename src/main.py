@@ -540,23 +540,44 @@ def main() -> None:
             return
         logger.info("[SHUTDOWN] Stopping...")
         _shutting_down.set()
+        # Cancel bot tasks
+        if bot._app:
+            try:
+                await bot._app.stop()
+                await bot._app.shutdown()
+            except Exception:
+                pass
+
+    def _signal_handler() -> None:
+        try:
+            asyncio.ensure_future(_shutdown())
+        except Exception:
+            pass
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    for sig in ("SIGINT", "SIGTERM"):
-        try:
-            loop.add_signal_handler(
-                getattr(signal, sig),
-                lambda: asyncio.ensure_future(_shutdown()),
-            )
-        except (NotImplementedError, AttributeError):
-            pass
+    # Register signal handler (Unix) or fallback (Windows)
+    try:
+        loop.add_signal_handler(
+            signal.SIGINT,
+            _signal_handler,
+        )
+        loop.add_signal_handler(
+            signal.SIGTERM,
+            _signal_handler,
+        )
+    except (NotImplementedError, AttributeError):
+        # Windows: add_signal_handler not supported
+        # Use a polling approach — check a flag set by KeyboardInterrupt
+        pass
 
     try:
         loop.run_until_complete(bot.start())
     except (KeyboardInterrupt, asyncio.CancelledError):
-        pass
+        # Windows: KeyboardInterrupt is raised directly
+        # Set the event so scheduler and other loops exit
+        _shutting_down.set()
     finally:
         # Cancel all remaining tasks gracefully
         pending = asyncio.all_tasks(loop)

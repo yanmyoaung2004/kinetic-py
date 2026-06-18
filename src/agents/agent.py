@@ -11,6 +11,7 @@ from typing import Any
 from src.agents.memory import AgentMemory, UserProfile, build_compression_prompt, build_summary_message
 from src.agents.rag.embedding import get_embedding
 from src.agents.rag.vector_store import SearchOptions, add_chunks, search_similar
+from src.agents.tools.briefing_tool import create_daily_briefing_tool
 from src.agents.tools.browser import (
     create_browser_click_tool,
     create_browser_close_tool,
@@ -47,6 +48,7 @@ from src.agents.tools.knowledge_tool import (
     ensure_embedding,
 )
 from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
+from src.agents.tools.news_tool import create_news_tool
 from src.agents.tools.obsidian_tools import (
     create_obsidian_canvas_add_tool,
     create_obsidian_create_note_tool,
@@ -75,6 +77,7 @@ from src.agents.tools.system_tools import (
     create_get_system_info_tool,
     create_read_env_var_tool,
 )
+from src.agents.tools.weather_tool import create_weather_tool
 from src.agents.tools.youtube_tool import create_youtube_info_tool
 from src.providers.provider import UnifiedProvider, UnifiedProviderConfig, call_with_fallback
 from src.types.agent import AgentCard, IAgent, ToolDefinition
@@ -353,6 +356,9 @@ class AgentInstance(IAgent):
         self._register_tool(create_generate_image_tool())
         self._register_tool(create_image_search_tool())
         self._register_tool(create_youtube_info_tool())
+        self._register_tool(create_weather_tool())
+        self._register_tool(create_news_tool())
+        self._register_tool(create_daily_briefing_tool())
         # Skills discovery
         self._register_tool(create_list_skills_tool())
         # Presentations
@@ -416,6 +422,14 @@ class AgentInstance(IAgent):
             yt_result = await self._auto_youtube(message)
             if yt_result:
                 return yt_result
+
+        # Pre-process: auto-briefing on "good morning" or "daily briefing"
+        morning_kw = ("good morning", "daily briefing", "morning briefing", "what's my day")
+        if any(kw in message.lower() for kw in morning_kw):
+            from src.agents.tools.briefing_tool import _daily_briefing
+            briefing = await _daily_briefing({}, ToolContext(chat_id=self._current_chat_id))
+            if briefing and not briefing.startswith("ERROR"):
+                return briefing
 
         # Stage 1: Classify (multi mode)
         if self._mode == "multi" and self._classify_providers:
