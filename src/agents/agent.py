@@ -75,6 +75,7 @@ from src.agents.tools.system_tools import (
     create_get_system_info_tool,
     create_read_env_var_tool,
 )
+from src.agents.tools.youtube_tool import create_youtube_info_tool
 from src.providers.provider import UnifiedProvider, UnifiedProviderConfig, call_with_fallback
 from src.types.agent import AgentCard, IAgent, ToolDefinition
 from src.types.llm import ChatMessage
@@ -168,6 +169,10 @@ GLOBAL_PROTOCOLS = """
   images for slides instead of generating them with AI. Search images
   is faster, free, and gives real photos. Use download=true to save
   them to the sandbox, then reference them in create_presentation.
+- CRITICAL: When the user pastes a YouTube link or asks about a video,
+  you MUST call get_youtube_info with summarize=true.
+  DO NOT guess the content from your training data — every video is different.
+  The transcript is the only way to know what a video actually says.
 - For complex multi-perspective tasks, use spawn_swarm to run multiple
   specialists in parallel instead of calling spawn_specialist sequentially.
   Swarms are faster for research, analysis, and creative work.
@@ -347,6 +352,7 @@ class AgentInstance(IAgent):
         # Image generation
         self._register_tool(create_generate_image_tool())
         self._register_tool(create_image_search_tool())
+        self._register_tool(create_youtube_info_tool())
         # Skills discovery
         self._register_tool(create_list_skills_tool())
         # Presentations
@@ -399,6 +405,17 @@ class AgentInstance(IAgent):
             note_result = await self._auto_obsidian_note(message)
             if note_result:
                 return note_result
+
+        # Pre-process: auto-fetch YouTube info when a link is pasted
+        # (but not if the user wants to save/note it — that's handled above)
+        import re as _re
+        has_youtube = _re.search(r"(youtube\.com|youtu\.be)", message)
+        info_kw = ("what", "about", "tell", "summarize", "check", "see", "watch")
+        wants_info = any(kw in message.lower() for kw in info_kw)
+        if has_youtube and (wants_info or not any(kw in message.lower() for kw in note_keywords)):
+            yt_result = await self._auto_youtube(message)
+            if yt_result:
+                return yt_result
 
         # Stage 1: Classify (multi mode)
         if self._mode == "multi" and self._classify_providers:
@@ -613,6 +630,24 @@ class AgentInstance(IAgent):
             return f"Created note: {path} in your Obsidian vault."
         except Exception as e:
             logger.warning("[AUTO_OBSIDIAN] Failed: %s", e)
+            return None
+
+    async def _auto_youtube(self, message: str) -> str | None:
+        from src.agents.tools.youtube_tool import _extract_vid
+
+        vid = _extract_vid(message)
+        if not vid:
+            return None
+
+        try:
+            from src.agents.tools.youtube_tool import _get_youtube_info
+            result = await _get_youtube_info({"url": f"https://youtu.be/{vid}", "summarize": True}, None)
+            if result.startswith("ERROR"):
+                return None
+            logger.info("[AUTO_YOUTUBE] Fetched info for video %s", vid)
+            return result
+        except Exception as e:
+            logger.warning("[AUTO_YOUTUBE] Failed: %s", e)
             return None
 
     async def _run_think_loop(self, current_depth: int) -> str:
