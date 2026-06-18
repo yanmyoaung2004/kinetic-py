@@ -60,6 +60,7 @@ from src.agents.tools.obsidian_tools import (
     create_obsidian_spaced_repetition_tool,
     create_obsidian_suggest_links_tool,
 )
+from src.agents.tools.opencode_tool import create_apply_opencode_tool, create_call_opencode_tool
 from src.agents.tools.pipeline_tool import create_run_pipeline_tool
 from src.agents.tools.presentation_tool import create_presentation_tool
 from src.agents.tools.registry import (
@@ -363,6 +364,8 @@ class AgentInstance(IAgent):
         self._register_tool(create_generate_image_tool())
         self._register_tool(create_image_search_tool())
         self._register_tool(create_youtube_info_tool())
+        self._register_tool(create_call_opencode_tool())
+        self._register_tool(create_apply_opencode_tool())
         self._register_tool(create_weather_tool())
         self._register_tool(create_news_tool())
         self._register_tool(create_daily_briefing_tool())
@@ -438,11 +441,24 @@ class AgentInstance(IAgent):
             if briefing and not briefing.startswith("ERROR"):
                 return briefing
 
-        # Pre-process: delegate coding tasks to coding-assistant (only from main agent, not sub-agents)
+        # Pre-process: delegate coding tasks (only from main agent, not sub-agents)
         if current_depth == 0:
             lowered = message.lower()
-            # Use broader individual-word matching: if "write" + "function"/"script"/"code"/"program" all appear
-            has_write = any(w in lowered for w in ("write", "create", "implement", "debug", "fix"))
+            # Route complex project tasks to OpenCode
+            complex_kw = ("add feature", "refactor", "implement", "create component",
+                          "add endpoint", "add route", "create migration", "update model",
+                          "add authentication", "add authorization", "add api",
+                          "add database", "add schema", "add middleware",
+                          "restructure", "redesign", "rewrite module")
+            if any(kw in lowered for kw in complex_kw):
+                from src.agents.tools.opencode_tool import _call_opencode
+                result = await _call_opencode({"task": message, "dir": "."}, ToolContext(chat_id=self._current_chat_id))
+                if result and not result.startswith("ERROR"):
+                    self._memory.append(ChatMessage(role="system", content="[opencode handled this task]"))
+                    return result
+
+            # Route simple coding tasks to coding-assistant
+            has_write = any(w in lowered for w in ("write", "create", "debug", "fix"))
             has_coding = any(w in lowered for w in ("function", "script", "code", "program",
                                                       "class", "module", "test", "implement",
                                                       "python", "javascript", "typescript",
