@@ -13,6 +13,20 @@
       "soulPath": "./main/SOUL.md",
       "provider": "lightning",
       "can_delegate": false
+    },
+    {
+      "id": "obsidian-assistant",
+      "name": "Second Brain Assistant",
+      "soulPath": "./skills/obsidian-assistant/SOUL.md",
+      "provider": "",
+      "model": "",
+      "type": "library",
+      "can_delegate": false,
+      "tools": [
+        "read_file", "write_file", "edit_file", "list_files",
+        "obsidian_create_note", "obsidian_search",
+        "obsidian_graph_query", "obsidian_daily_note"
+      ]
     }
   ]
 }

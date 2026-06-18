@@ -72,26 +72,40 @@ COMMANDS_HELP = """
 
 
 def _convert_markdown(text: str) -> str:
-    """Convert Markdown to Telegram HTML format."""
+    """Convert Markdown to Telegram HTML format safely — no formatting inside code."""
     import html
     import re
 
     # Escape HTML entities first
     text = html.escape(text)
 
-    # Convert markdown to HTML tags
-    # Code blocks
-    text = re.sub(r"```([\s\S]*?)```", r"<pre>\1</pre>", text)
-    # Inline code
-    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
-    # Bold **text**
+    # Protect code blocks from inline formatting
+    placeholders: dict[str, str] = {}
+
+    def _protect(m: re.Match) -> str:
+        key = f"\x00CODE{len(placeholders)}\x00"
+        placeholders[key] = m.group(0)
+        return key
+
+    # Block code ```...```
+    text = re.sub(r"```[\s\S]*?```", _protect, text)
+    # Inline code `...`
+    text = re.sub(r"`[^`]+`", _protect, text)
+
+    # Apply inline formatting on non-code text only
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-    # Italic *text*
     text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
-    # Underline __text__
     text = re.sub(r"__(.+?)__", r"<u>\1</u>", text)
-    # Strikethrough ~~text~~
     text = re.sub(r"~~(.+?)~~", r"<s>\1</s>", text)
+
+    # Restore protected code blocks
+    for key, original in placeholders.items():
+        code_html = original
+        # Convert code markers to HTML tags
+        code_html = re.sub(r"```([\s\S]*?)```", r"<pre>\1</pre>", code_html)
+        code_html = re.sub(r"`([^`]+)`", r"<code>\1</code>", code_html)
+        text = text.replace(key, code_html)
+
     # Newlines
     text = re.sub(r"\n{2,}", "\n\n", text)
     return text

@@ -1,0 +1,13 @@
+{
+  "id": "obsidian-assistant",
+  "name": "Second Brain Assistant",
+  "description": "Read, write, search, and link notes in your local Obsidian vault. Create daily notes, explore connections, and find orphans.",
+  "version": "1.0.0",
+  "tools": [
+    "read_file", "write_file", "edit_file", "list_files",
+    "obsidian_create_note", "obsidian_search",
+    "obsidian_graph_query", "obsidian_daily_note"
+  ],
+  "provider": "",
+  "model": ""
+}

@@ -96,10 +96,7 @@ def install_skill(name: str, activate: bool = True, url: str | None = None) -> s
         resp.raise_for_status()
         manifest_data = resp.json()
     except Exception:
-        hint = (
-            f"from {url}" if url
-            else f"from {COMMUNITY_REPO}"
-        )
+        hint = f"from {url}" if url else f"from {COMMUNITY_REPO}"
         return (
             f"Could not fetch skill '{name}' {hint}.\n"
             f"Make sure the URL is correct and the repo has a '{name}/' directory\n"

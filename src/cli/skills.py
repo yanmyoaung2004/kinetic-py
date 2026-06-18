@@ -30,7 +30,11 @@ def list_skills() -> None:
 @skills.command()
 @click.argument("name")
 @click.option("--no-activate", is_flag=True, help="Install but don't add to agents.json")
-@click.option("--url", default=None, help="Custom URL to a skill directory (e.g., https://github.com/user/repo/tree/main/my-skill)")
+@click.option(
+    "--url",
+    default=None,
+    help="Custom URL to a skill directory (e.g., https://github.com/user/repo/tree/main/my-skill)",
+)
 def install(name: str, no_activate: bool, url: str | None) -> None:
     """Install a skill from the community repo or a custom URL.
 

@@ -46,6 +46,12 @@ from src.agents.tools.knowledge_tool import (
     ensure_embedding,
 )
 from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
+from src.agents.tools.obsidian_tools import (
+    create_obsidian_create_note_tool,
+    create_obsidian_daily_note_tool,
+    create_obsidian_graph_query_tool,
+    create_obsidian_search_tool,
+)
 from src.agents.tools.pipeline_tool import create_run_pipeline_tool
 from src.agents.tools.registry import (
     ToolContext,
@@ -266,6 +272,12 @@ class AgentInstance(IAgent):
         self._register_tool(create_generate_image_tool())
         # Skills discovery
         self._register_tool(create_list_skills_tool())
+        # Obsidian (only if vault is configured)
+        if os.environ.get("OBSIDIAN_VAULT_PATH"):
+            self._register_tool(create_obsidian_create_note_tool())
+            self._register_tool(create_obsidian_search_tool())
+            self._register_tool(create_obsidian_graph_query_tool())
+            self._register_tool(create_obsidian_daily_note_tool())
 
         logger.info(
             "[SYSTEM] Initialized: %s [%s] tools=%d", self.id, self.config.type, len(self._tools.get_definitions())

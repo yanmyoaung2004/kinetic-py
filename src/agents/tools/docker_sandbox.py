@@ -39,7 +39,9 @@ def _ensure_container() -> str | None:
     # Check if already running
     check = subprocess.run(
         ["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER_NAME],
-        capture_output=True, text=True, timeout=10,
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     if check.returncode == 0 and check.stdout.strip() == "true":
         return CONTAINER_NAME
@@ -47,23 +49,34 @@ def _ensure_container() -> str | None:
     # Remove stale container if exists
     subprocess.run(
         ["docker", "rm", "-f", CONTAINER_NAME],
-        capture_output=True, timeout=10,
+        capture_output=True,
+        timeout=10,
     )
 
     # Start new container with a long-running process
     logger.info("[SANDBOX] Starting persistent container %s (%s)...", CONTAINER_NAME, IMAGE)
     result = subprocess.run(
         [
-            "docker", "run", "-d",
-            "--name", CONTAINER_NAME,
-            "--memory", MEMORY_LIMIT,
-            "--cpus", CPU_LIMIT,
-            "--network", "none",
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            CONTAINER_NAME,
+            "--memory",
+            MEMORY_LIMIT,
+            "--cpus",
+            CPU_LIMIT,
+            "--network",
+            "none",
             "--init",
             IMAGE,
-            "python", "-c", "import time; time.sleep(86400)",
+            "python",
+            "-c",
+            "import time; time.sleep(86400)",
         ],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if result.returncode != 0:
         logger.warning("[SANDBOX] Failed to start container: %s", result.stderr.strip())
@@ -79,7 +92,8 @@ def _cleanup_container() -> None:
     _cleaned_up = True
     subprocess.run(
         ["docker", "rm", "-f", CONTAINER_NAME],
-        capture_output=True, timeout=10,
+        capture_output=True,
+        timeout=10,
     )
     logger.info("[SANDBOX] Container %s stopped", CONTAINER_NAME)
 
@@ -102,13 +116,18 @@ async def run_in_docker(code: str, image: str = IMAGE) -> str:
 
         subprocess.run(
             ["docker", "cp", str(script_path), f"{container}:/_run.py"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                "docker", "exec", "-i", container,
-                "python", "/_run.py",
+                "docker",
+                "exec",
+                "-i",
+                container,
+                "python",
+                "/_run.py",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
