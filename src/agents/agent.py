@@ -58,6 +58,7 @@ from src.agents.tools.obsidian_tools import (
     create_obsidian_suggest_links_tool,
 )
 from src.agents.tools.pipeline_tool import create_run_pipeline_tool
+from src.agents.tools.presentation_tool import create_presentation_tool
 from src.agents.tools.registry import (
     ToolContext,
     ToolHandler,
@@ -65,7 +66,7 @@ from src.agents.tools.registry import (
     create_send_message_tool,
     create_web_search_tool,
 )
-from src.agents.tools.schedule_task import create_get_time_tool, create_schedule_task_tool
+from src.agents.tools.schedule_task import create_get_time_tool, create_list_tasks_tool, create_schedule_task_tool
 from src.agents.tools.send_file_tool import create_send_file_tool
 from src.agents.tools.skills_tool import create_list_skills_tool
 from src.agents.tools.system_tools import (
@@ -161,6 +162,9 @@ GLOBAL_PROTOCOLS = """
 - For complex multi-perspective tasks, use spawn_swarm to run multiple
   specialists in parallel instead of calling spawn_specialist sequentially.
   Swarms are faster for research, analysis, and creative work.
+- When the user asks about their schedule, tasks, or reminders for today,
+  you MUST call list_scheduled_tasks to get fresh data.
+  Do NOT answer from memory or past conversations — schedules change.
 """
 
 
@@ -296,6 +300,7 @@ class AgentInstance(IAgent):
         self._register_tool(create_list_files_tool())
         self._register_tool(create_undo_file_tool())
         self._register_tool(create_schedule_task_tool(self.id))
+        self._register_tool(create_list_tasks_tool())
         self._register_tool(create_get_time_tool())
         self._register_tool(create_get_system_info_tool())
         self._register_tool(create_download_url_tool())
@@ -334,6 +339,8 @@ class AgentInstance(IAgent):
         self._register_tool(create_generate_image_tool())
         # Skills discovery
         self._register_tool(create_list_skills_tool())
+        # Presentations
+        self._register_tool(create_presentation_tool())
         # Obsidian (only if vault is configured)
         if os.environ.get("OBSIDIAN_VAULT_PATH"):
             self._register_tool(create_obsidian_create_note_tool())

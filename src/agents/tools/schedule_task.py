@@ -123,3 +123,46 @@ def create_get_time_tool() -> ToolHandler:
 async def _get_time() -> str:
     now = datetime.now()
     return f"Current time: {now.strftime('%c')} ({now.isoformat()})"
+
+
+def create_list_tasks_tool() -> ToolHandler:
+    from src.agents.tasks.scheduler import list_tasks
+
+    async def _list_tasks(args: dict, ctx: ToolContext | None) -> str:
+        agent_id = args.get("agent_id", "").strip() or "main"
+        tasks = list_tasks(agent_id)
+        if not tasks:
+            return "No scheduled tasks."
+        lines = []
+        now = datetime.now()
+        for t in tasks:
+            due = ""
+            if t.next_run:
+                try:
+                    due_dt = datetime.fromisoformat(t.next_run)
+                    due = due_dt.strftime("%a %H:%M")
+                    if due_dt.date() == now.date():
+                        due = f"Today {due_dt.strftime('%H:%M')}"
+                    elif due_dt.date() == (now + timedelta(days=1)).date():
+                        due = f"Tomorrow {due_dt.strftime('%H:%M')}"
+                except Exception:
+                    due = t.next_run[:16]
+            type_str = "🔄" if t.interval_ms else "🔔"
+            lines.append(f"  {type_str} {t.description} ({due})")
+        return "Scheduled tasks:\n" + "\n".join(lines)
+
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "list_scheduled_tasks",
+                "description": "List all scheduled reminders and recurring tasks with their next run time.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "agent_id": {"type": "string", "description": "Agent ID (default: main)"},
+                    },
+                },
+            },
+        ),
+        execute=_list_tasks,
+    )
