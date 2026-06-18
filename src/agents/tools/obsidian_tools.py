@@ -213,10 +213,37 @@ async def _obsidian_suggest_links(args: dict[str, Any], ctx: ToolContext | None)
     import re
 
     # Extract significant words (4+ chars, not common stopwords)
-    stopwords = {"this", "that", "with", "from", "have", "been", "were", "what",
-                 "when", "where", "which", "their", "there", "about", "would",
-                 "could", "should", "into", "than", "then", "also", "very",
-                 "just", "more", "some", "them", "make", "than", "note"}
+    stopwords = {
+        "this",
+        "that",
+        "with",
+        "from",
+        "have",
+        "been",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "their",
+        "there",
+        "about",
+        "would",
+        "could",
+        "should",
+        "into",
+        "than",
+        "then",
+        "also",
+        "very",
+        "just",
+        "more",
+        "some",
+        "them",
+        "make",
+        "than",
+        "note",
+    }
     words = set()
     for w in re.findall(r"[A-Za-z]{4,}", text.lower()):
         if w not in stopwords:
@@ -317,10 +344,9 @@ async def _obsidian_daily_digest(args: dict[str, Any], ctx: ToolContext | None) 
         graph[name] = set(extract_wikilinks(text))
 
     orphaned = sorted(
-        n for n in all_names
-        if n not in ("Welcome",)
-        and not any(n in links for links in graph.values())
-        and n.lower() != "daily"
+        n
+        for n in all_names
+        if n not in ("Welcome",) and not any(n in links for links in graph.values()) and n.lower() != "daily"
     )
     if orphaned:
         digest_lines.append("\n### 🔗 Notes Without Backlinks\n")
@@ -345,7 +371,12 @@ def create_obsidian_create_note_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "obsidian_create_note",
-                "description": "Create a new Obsidian note with optional tags and wikilinks in the content.",
+                "description": (
+                    "Create a new note in your permanent Obsidian vault"
+                    " (OBSIDIAN_VAULT_PATH). Use this for knowledge, ideas,"
+                    " journal entries. NOT the same as write_file which goes to"
+                    " agent_sandbox/."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -495,4 +526,191 @@ def create_obsidian_daily_digest_tool() -> ToolHandler:
             },
         ),
         execute=_obsidian_daily_digest,
+    )
+
+
+# ── Phase 5: Canvas & Spaced Repetition ──
+
+
+async def _obsidian_canvas_add(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    import json
+    import uuid
+
+    root = vault_path()
+    if not root:
+        return "ERROR: OBSIDIAN_VAULT_PATH not set."
+
+    path_str = args.get("path", "").strip()
+    if not path_str.endswith(".canvas"):
+        path_str += ".canvas"
+
+    file_path = (root / path_str).resolve()
+    if not str(file_path).startswith(str(root)):
+        return "ERROR: Path escapes vault."
+
+    card_text = args.get("card", "").strip()
+    card_title = args.get("title", "").strip() or "Card"
+    color = args.get("color", "").strip()
+
+    # Load or create canvas
+    if file_path.exists():
+        try:
+            canvas = json.loads(file_path.read_text("utf-8"))
+        except json.JSONDecodeError:
+            canvas = {"nodes": [], "edges": []}
+    else:
+        canvas = {"nodes": [], "edges": []}
+
+    # Add card node
+    node_id = str(uuid.uuid4())
+    x = args.get("x", len(canvas["nodes"]) * 50)
+    y = args.get("y", len(canvas["nodes"]) * 50)
+    node = {
+        "id": node_id,
+        "x": x,
+        "y": y,
+        "width": 400,
+        "height": 200 if card_text else 60,
+        "type": "text",
+        "text": f"# {card_title}\n{card_text}" if card_text else card_title,
+    }
+    if color:
+        node["color"] = color
+    canvas["nodes"].append(node)
+
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(json.dumps(canvas, indent=2), encoding="utf-8")
+    return f"Added card '{card_title}' to canvas: {path_str}"
+
+
+async def _obsidian_spaced_repetition(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    import re
+
+    root = vault_path()
+    if not root:
+        return "ERROR: OBSIDIAN_VAULT_PATH not set."
+
+    action = args.get("action", "list").strip().lower()
+
+    # Scan all notes for flashcard markers
+    flashcards: list[dict[str, str]] = []
+    for fp in all_notes():
+        try:
+            text = fp.read_text("utf-8", errors="replace")
+            _, body = parse_frontmatter(text)
+            rel = fp.relative_to(root).as_posix()[:-3]
+
+            # Parse :: format: Question::Answer
+            for line in body.split("\n"):
+                line = line.strip()
+                if "::" in line and not line.startswith("```"):
+                    parts = line.split("::", 1)
+                    q, a = parts[0].strip(), parts[1].strip()
+                    if q and a and len(q) > 5:
+                        flashcards.append({"note": rel, "question": q, "answer": a, "type": "qa"})
+
+            # Parse ? / ! format (Obsidian SR plugin)
+            q_lines = []
+            for line in body.split("\n"):
+                if line.startswith("?"):
+                    q_lines.append(line[1:].strip())
+                elif line.startswith("!") and q_lines:
+                    answer = line[1:].strip()
+                    for question in q_lines:
+                        flashcards.append({"note": rel, "question": question, "answer": answer, "type": "qa"})
+                    q_lines = []
+                elif not line.startswith("?"):
+                    q_lines = []
+
+            # Detect cloze deletions {c1:...}
+            clozes = re.findall(r"\{c\d+:(.*?)\}", body)
+            for cloze in clozes:
+                preview = body[:100]
+                flashcards.append({"note": rel, "question": f"Cloze: {preview}...", "answer": cloze, "type": "cloze"})
+
+        except Exception:
+            continue
+
+    if action == "quiz":
+        if not flashcards:
+            return "No flashcards found in your vault. Add #flashcard tag or use Question::Answer format."
+
+        import random
+        sample = random.sample(flashcards, min(5, len(flashcards)))
+        lines = [f"Quiz ({len(sample)} questions):\n"]
+        for i, card in enumerate(sample, 1):
+            lines.append(f"{i}. {card['question']}")
+            lines.append(f"   → {card['answer']}  (from [[{card['note']}]])")
+        return "\n".join(lines)
+
+    if action == "csv":
+        import io
+        buf = io.StringIO()
+        for card in flashcards:
+            escaped_q = card["question"].replace('"', '""')
+            escaped_a = card["answer"].replace('"', '""')
+            buf.write(f'"{escaped_q}","{escaped_a}","{card["note"]}"\n')
+        return f"CSV ({len(flashcards)} cards):\n\n{buf.getvalue()[:3000]}"
+
+    # Default: list stats
+    if not flashcards:
+        return "No flashcards found. Add #flashcard tag or Question::Answer format to your notes."
+
+    return f"Flashcards found: {len(flashcards)}\n\n" + "\n".join(
+        f"  • {c['question'][:60]} → {c['answer'][:60]}  ([[{c['note']}]])"
+        for c in flashcards[:15]
+    )
+
+
+def create_obsidian_canvas_add_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "obsidian_canvas_add",
+                "description": (
+                    "Add a card to an Obsidian Canvas (.canvas file). "
+                    "Creates the canvas if it doesn't exist. "
+                    "Use for brainstorming, mind maps, and visual layouts."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path to .canvas file (e.g., 'Brainstorm.canvas')"},
+                        "title": {"type": "string", "description": "Card title"},
+                        "card": {"type": "string", "description": "Card content (markdown)"},
+                        "color": {"type": "string", "description": "Optional card color"},
+                    },
+                    "required": ["path", "title"],
+                },
+            },
+        ),
+        execute=_obsidian_canvas_add,
+    )
+
+
+def create_obsidian_spaced_repetition_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "obsidian_spaced_repetition",
+                "description": (
+                    "Scan vault for flashcards (#flashcard tag, Question::Answer format,"
+                    " or cloze deletions) and list, quiz, or export as CSV."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "description": (
+                                "'list' (default) to show all,"
+                                " 'quiz' for sample questions,"
+                                " 'csv' for Anki export"
+                            ),
+                        },
+                    },
+                },
+            },
+        ),
+        execute=_obsidian_spaced_repetition,
     )

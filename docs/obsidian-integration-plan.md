@@ -152,6 +152,50 @@ OBSIDIAN_VAULT_PATH=D:/Obsidian/MyVault
 }
 ```
 
+## Test Prompts
+
+### obsidian_edit_note
+```
+edit obsidian note AI Notes.md and append "## New Section\nAdded via edit tool"
+edit my note about transformers and prepend "## Updated\nThis was prepended"
+edit Daily/2026-06-18.md and replace the content with "# New content only"
+```
+
+### obsidian_search
+```
+search my vault for "transformers"
+search notes with tag ai
+find notes in my Projects folder about agents
+```
+
+### obsidian_graph_query
+```
+what links to my Transformers note?
+show me orphan notes
+which notes have no backlinks?
+```
+
+### obsidian_daily_note
+```
+show my daily note for today
+create a daily note for 2026-06-20
+append "- reviewed PR" to today's daily note
+```
+
+### obsidian_suggest_links
+```
+suggest links for "building AI agents with LangChain and vector databases"
+find related notes about "multi-agent orchestration patterns"
+```
+
+### obsidian_daily_digest
+```
+run daily digest for today
+generate my morning brief
+```
+
+---
+
 ## Dependency
 
 - `pip install pyyaml` (for frontmatter parsing) — already in pyproject.toml as optional

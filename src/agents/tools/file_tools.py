@@ -61,7 +61,7 @@ def create_read_file_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "read_file",
-                "description": "Read the contents of a file from the sandbox directory.",
+                "description": "Read a file from the temporary agent_sandbox/ directory (not your Obsidian vault).",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -98,14 +98,15 @@ def create_write_file_tool() -> ToolHandler:
             function={
                 "name": "write_file",
                 "description": (
-                    "Create or overwrite a file in the sandbox. "
-                    "Only use when the user explicitly asks you to write or save a file."
+                    "Write a file to the temporary agent_sandbox/ directory"
+                    " (code, data, exports — NOT your Obsidian vault)."
+                    " Use obsidian_create_note for permanent notes."
                 ),
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Relative path within the sandbox"},
-                        "content": {"type": "string", "description": "The full file content to write"},
+                        "path": {"type": "string", "description": "Relative path within agent_sandbox/"},
+                        "content": {"type": "string", "description": "File content"},
                     },
                     "required": ["path", "content"],
                 },

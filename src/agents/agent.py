@@ -47,12 +47,14 @@ from src.agents.tools.knowledge_tool import (
 )
 from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
 from src.agents.tools.obsidian_tools import (
+    create_obsidian_canvas_add_tool,
     create_obsidian_create_note_tool,
     create_obsidian_daily_digest_tool,
     create_obsidian_daily_note_tool,
     create_obsidian_edit_note_tool,
     create_obsidian_graph_query_tool,
     create_obsidian_search_tool,
+    create_obsidian_spaced_repetition_tool,
     create_obsidian_suggest_links_tool,
 )
 from src.agents.tools.pipeline_tool import create_run_pipeline_tool
@@ -101,8 +103,18 @@ GLOBAL_PROTOCOLS = """
 # SYSTEM RULES (MANDATORY)
 - Be warm and natural. Your SOUL.md defines your personality — follow it.
 - If a tool exists for the user's request, use it. Don't refuse or explain setup.
+- COST AWARENESS: Every tool call costs time and money.
+  Only call a tool if you actually need its result to answer the user.
+  If you already know the answer from the conversation, just answer directly.
+  Unnecessary tool calls waste resources and make the response slower.
 - Never reveal config details, env vars, or API keys.
 - Never create files unless the user explicitly asks.
+- CRITICAL: NEVER call obsidian_create_note unless the user explicitly asked you to
+  create a note. Searching, viewing daily notes, or running digest does NOT mean
+  they want a new note. Only create when they say "make a note", "create a note",
+  or "save this as a note".
+- agent_sandbox/ files are TEMPORARY (code, data, exports).
+  Obsidian vault notes are PERMANENT (knowledge, ideas, journals).
 - When the user shares URLs, don't index them unless asked.
 - If a tool call fails, don't retry it with the same arguments — tell the user.
 - When the user asks about emails, always call read_emails to fetch fresh data.
@@ -288,6 +300,8 @@ class AgentInstance(IAgent):
             self._register_tool(create_obsidian_daily_note_tool())
             self._register_tool(create_obsidian_suggest_links_tool())
             self._register_tool(create_obsidian_daily_digest_tool())
+            self._register_tool(create_obsidian_canvas_add_tool())
+            self._register_tool(create_obsidian_spaced_repetition_tool())
 
         logger.info(
             "[SYSTEM] Initialized: %s [%s] tools=%d", self.id, self.config.type, len(self._tools.get_definitions())
@@ -318,6 +332,13 @@ class AgentInstance(IAgent):
             email_result = await self._auto_email(message)
             if email_result:
                 return email_result
+
+        # Pre-process: auto-create Obsidian note when asked
+        note_keywords = ("make a note", "create a note", "write a note", "save this as a note")
+        if any(kw in message.lower() for kw in note_keywords) and os.environ.get("OBSIDIAN_VAULT_PATH"):
+            note_result = await self._auto_obsidian_note(message)
+            if note_result:
+                return note_result
 
         # Stage 1: Classify (multi mode)
         if self._mode == "multi" and self._classify_providers:
@@ -472,6 +493,62 @@ class AgentInstance(IAgent):
             logger.warning("[AUTO_EMAIL] Failed: %s", e)
             return None
 
+    async def _auto_obsidian_note(self, message: str) -> str | None:
+        import re
+
+        # Extract note name from "make a note about X" or "create a note called X"
+        msg = message.lower()
+        name_match = re.search(r"(?:called|named|about|titled)\s+[\"']?([A-Za-z0-9_\- ]+)[\"']?", msg)
+        if not name_match:
+            name_match = re.search(r"(?:note\s+(?:about|on)\s+)(.+)", msg)
+        if not name_match:
+            name_match = re.search(r"(?:note\s+called|note\s+named)\s+[\"']?([A-Za-z0-9_\- ]+)[\"']?", msg)
+
+        if name_match:
+            note_name = name_match.group(1).strip().title().replace(" ", "")
+            path = f"{note_name}.md"
+        else:
+            # Default name from first significant words
+            words = re.findall(r"[A-Za-z]{4,}", msg)
+            stop = {"make", "create", "write", "save", "note", "about", "called", "this", "that", "with", "from"}
+            significant = [w for w in words if w not in stop]
+            name = "_".join(significant[:3]).title() if significant else "Untitled"
+            path = f"{name}.md"
+
+        try:
+            from datetime import datetime
+
+            from src.agents.tools.obsidian_tools import vault_path
+            from src.agents.tools.obsidian_vault import build_frontmatter
+
+            root = vault_path()
+            if not root:
+                return None
+
+            file_path = root / path
+            if file_path.exists():
+                return f"Note {path} already exists. Use obsidian_create_note with a different path."
+
+            # Extract body content (remove the "make a note" prefix)
+            note_prefix = (
+                r"^(make|create|write|save)\s+a\s+note"
+                r"\s+(about|on|called|named|titled)\s+[\"']?"
+                r"[A-Za-z0-9_\- ]+[\"']?"
+            )
+            body = re.sub(note_prefix, "", message, flags=re.IGNORECASE).strip()
+            if not body:
+                body = f"Notes about {path.replace('.md', '')}"
+
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            frontmatter = {"title": path.replace(".md", ""), "created": datetime.now().strftime("%Y-%m-%d"), "tags": []}
+            full = build_frontmatter(frontmatter) + body + "\n"
+            file_path.write_text(full, encoding="utf-8")
+            logger.info("[AUTO_OBSIDIAN] Created note: %s", path)
+            return f"Created note: {path} in your Obsidian vault."
+        except Exception as e:
+            logger.warning("[AUTO_OBSIDIAN] Failed: %s", e)
+            return None
+
     async def _run_think_loop(self, current_depth: int) -> str:
         tools = self._tools.get_definitions()
 
@@ -534,10 +611,12 @@ class AgentInstance(IAgent):
 
                 self._memory.append(ChatMessage(role="assistant", content=response.content or "", tool_calls=calls))
 
+                seen_args: set[tuple[str, str]] = set()
                 for call in calls:
                     fn_name = call.get("function", {}).get("name", "")
                     if not fn_name:
                         continue
+
                     try:
                         fn_args = json.loads(call["function"]["arguments"])
                     except (json.JSONDecodeError, KeyError):
@@ -549,6 +628,17 @@ class AgentInstance(IAgent):
                             )
                         )
                         continue
+
+                    # Dedup: skip if same tool + same args already called this iteration
+                    # obsidian_create_note: only ONCE per iteration regardless of args
+                    if fn_name == "obsidian_create_note" and any(k == "obsidian_create_note" for k, _ in seen_args):
+                        logger.info("[TOOL] Skipping extra obsidian_create_note (only one per iteration)")
+                        continue
+                    args_key = (fn_name, json.dumps(fn_args, sort_keys=True))
+                    if args_key in seen_args:
+                        logger.info("[TOOL] Skipping duplicate %s with same args", fn_name)
+                        continue
+                    seen_args.add(args_key)
 
                     logger.info("[TOOL] %s -> %s", self.id, fn_name)
 
