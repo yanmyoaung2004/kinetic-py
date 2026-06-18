@@ -444,15 +444,30 @@ class AgentInstance(IAgent):
         # Pre-process: delegate coding tasks (only from main agent, not sub-agents)
         if current_depth == 0:
             lowered = message.lower()
-            # Route complex project tasks to OpenCode
-            complex_kw = ("add feature", "refactor", "implement", "create component",
-                          "add endpoint", "add route", "create migration", "update model",
-                          "add authentication", "add authorization", "add api",
-                          "add database", "add schema", "add middleware",
-                          "restructure", "redesign", "rewrite module")
-            if any(kw in lowered for kw in complex_kw):
+            # Route complex project tasks to OpenCode (word-level matching)
+            import re as _re
+            complex_indicators = {"add", "refactor", "implement", "create", "update",
+                                  "restructure", "redesign", "rewrite", "build", "migrate"}
+            complex_targets = {"endpoint", "route", "api", "feature", "component",
+                               "module", "migration", "schema", "model", "middleware",
+                               "auth", "authentication", "authorization", "database",
+                               "service", "controller", "handler"}
+            words = set(_re.findall(r"[a-z]+", lowered))
+            has_indicator = bool(words & complex_indicators)
+            has_target = bool(words & complex_targets)
+            logger.info("[CHECK] opencode: indicator=%s target=%s words=%s", has_indicator, has_target, words)
+            if has_indicator and has_target:
                 from src.agents.tools.opencode_tool import _call_opencode
-                result = await _call_opencode({"task": message, "dir": "."}, ToolContext(chat_id=self._current_chat_id))
+                logger.info("[AUTO_OPENCODE] Sending to opencode...")
+                # Extract project name from " — project: Name" suffix
+                import re as _re2
+                proj_match = _re2.search(r"(?:--project|project)[:\s]+(\S+)", message)
+                proj_name = proj_match.group(1) if proj_match else ""
+                task_clean = _re2.sub(r"\s*[-–—]+-?\s*(?:project|--project)[:\s]+\S+", "", message).strip()
+                result = await _call_opencode(
+                    {"task": task_clean, "project": proj_name},
+                    ToolContext(chat_id=self._current_chat_id),
+                )
                 if result and not result.startswith("ERROR"):
                     self._memory.append(ChatMessage(role="system", content="[opencode handled this task]"))
                     return result

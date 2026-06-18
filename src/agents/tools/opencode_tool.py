@@ -13,6 +13,7 @@ from src.types.agent import ToolDefinition
 
 DEFAULT_DIR = os.environ.get("OPENCODE_PROJECT_DIR", ".")
 DEFAULT_MODEL = os.environ.get("OPENCODE_DEFAULT_MODEL", "")  # empty = let OpenCode decide
+WORKSPACE = os.environ.get("OPENCODE_WORKSPACE", "")  # e.g., "D:/Projects"
 
 
 async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
@@ -20,12 +21,19 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
     if not task:
         return "ERROR: 'task' parameter is required."
 
-    project_dir = (args.get("dir") or DEFAULT_DIR).strip()
     model = args.get("model") or DEFAULT_MODEL
+    project_name = args.get("project", "").strip()
 
-    project_path = Path(project_dir).resolve()
-    if not project_path.is_dir():
-        return f"ERROR: Project directory not found: {project_dir}"
+    # Resolve project directory
+    if project_name and WORKSPACE:
+        # Create/use project folder inside workspace
+        project_path = (Path(WORKSPACE) / project_name).resolve()
+        project_path.mkdir(parents=True, exist_ok=True)
+    else:
+        project_dir = (args.get("dir") or DEFAULT_DIR).strip()
+        project_path = Path(project_dir).resolve()
+        if not project_path.is_dir():
+            return f"ERROR: Project directory not found: {project_dir}"
 
     # Build opencode command
     cmd = ["opencode", "run", "--dangerously-skip-permissions", "--format", "json"]
@@ -209,9 +217,13 @@ def create_call_opencode_tool() -> ToolHandler:
                     "type": "object",
                     "properties": {
                         "task": {"type": "string", "description": "The coding task to perform"},
+                        "project": {
+                            "type": "string",
+                            "description": "Project name (folder created in OPENCODE_WORKSPACE if set)",
+                        },
                         "dir": {
                             "type": "string",
-                            "description": "Project directory (default: OPENCODE_PROJECT_DIR env)",
+                            "description": "Explicit project directory (overrides project+workspace)",
                         },
                         "model": {
                             "type": "string",
