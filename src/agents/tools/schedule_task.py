@@ -166,3 +166,64 @@ def create_list_tasks_tool() -> ToolHandler:
         ),
         execute=_list_tasks,
     )
+
+
+def create_remove_task_tool() -> ToolHandler:
+    from src.agents.tasks.scheduler import list_tasks, remove_task
+
+    async def _remove_task(args: dict, ctx: ToolContext | None) -> str:
+        query = args.get("query", "").strip().lower()
+        remove_all = args.get("all", False)
+        agent_id = args.get("agent_id", "").strip() or "main"
+
+        tasks = list_tasks(agent_id)
+        if not tasks:
+            return "No scheduled tasks to remove."
+
+        if remove_all:
+            count = len(tasks)
+            for t in tasks:
+                remove_task(agent_id, t.id)
+            return f"Removed all {count} scheduled tasks."
+
+        if not query:
+            lines = ["Specify a task description or use all=true to clear everything. Tasks:"]
+            for t in tasks:
+                lines.append(f"  • {t.description} (id: {t.id[:8]}…)")
+            return "\n".join(lines)
+
+        # Find matching tasks by description
+        to_remove = [t for t in tasks if query in t.description.lower()]
+        if not to_remove:
+            lines = [f"No tasks matching '{query}'. Tasks:"]
+            for t in tasks:
+                lines.append(f"  • {t.description} (id: {t.id[:8]}…)")
+            return "\n".join(lines)
+
+        for t in to_remove:
+            remove_task(agent_id, t.id)
+        return f"Removed {len(to_remove)} task(s) matching '{query}'."
+
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "remove_scheduled_task",
+                "description": (
+                    "Remove scheduled tasks by keyword or clear all."
+                    " Use 'all' to remove everything."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Keyword to match task descriptions (e.g., 'reminder')",
+                        },
+                        "all": {"type": "boolean", "description": "Set to true to remove ALL scheduled tasks"},
+                        "agent_id": {"type": "string", "description": "Agent ID (default: main)"},
+                    },
+                },
+            },
+        ),
+        execute=_remove_task,
+    )

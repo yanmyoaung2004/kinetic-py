@@ -30,6 +30,24 @@
         "obsidian_daily_digest", "obsidian_canvas_add",
         "obsidian_spaced_repetition"
       ]
+    },
+    {
+      "id": "coding-assistant",
+      "name": "Coding Assistant",
+      "soulPath": "./coding-assistant/SOUL.md",
+      "provider": "lightning",
+      "type": "library",
+      "can_delegate": true,
+      "tools": [
+        "read_file", "write_file", "edit_file", "delete_file",
+        "list_files", "undo_file", "download_url",
+        "execute_command", "run_code",
+        "read_env_var", "get_current_time",
+        "web_search", "query_knowledge_base",
+        "spawn_specialist", "send_message",
+        "schedule_task", "list_scheduled_tasks",
+        "create_monitor", "list_monitors"
+      ]
     }
   ]
 }

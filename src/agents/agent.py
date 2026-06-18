@@ -69,7 +69,12 @@ from src.agents.tools.registry import (
     create_send_message_tool,
     create_web_search_tool,
 )
-from src.agents.tools.schedule_task import create_get_time_tool, create_list_tasks_tool, create_schedule_task_tool
+from src.agents.tools.schedule_task import (
+    create_get_time_tool,
+    create_list_tasks_tool,
+    create_remove_task_tool,
+    create_schedule_task_tool,
+)
 from src.agents.tools.send_file_tool import create_send_file_tool
 from src.agents.tools.skills_tool import create_list_skills_tool
 from src.agents.tools.system_tools import (
@@ -318,6 +323,7 @@ class AgentInstance(IAgent):
         self._register_tool(create_undo_file_tool())
         self._register_tool(create_schedule_task_tool(self.id))
         self._register_tool(create_list_tasks_tool())
+        self._register_tool(create_remove_task_tool())
         self._register_tool(create_get_time_tool())
         self._register_tool(create_get_system_info_tool())
         self._register_tool(create_download_url_tool())
@@ -430,6 +436,15 @@ class AgentInstance(IAgent):
             briefing = await _daily_briefing({}, ToolContext(chat_id=self._current_chat_id))
             if briefing and not briefing.startswith("ERROR"):
                 return briefing
+
+        # Pre-process: delegate coding tasks to coding-assistant
+        coding_kw = ("write a script", "write code", "write a program", "write a function",
+                     "create a script", "implement", "debug this", "fix this code",
+                     "python script", "javascript code", "bash script")
+        if any(kw in message.lower() for kw in coding_kw):
+            code_result = await self._auto_delegate_coding(message)
+            if code_result:
+                return code_result
 
         # Stage 1: Classify (multi mode)
         if self._mode == "multi" and self._classify_providers:
@@ -662,6 +677,21 @@ class AgentInstance(IAgent):
             return result
         except Exception as e:
             logger.warning("[AUTO_YOUTUBE] Failed: %s", e)
+            return None
+
+    async def _auto_delegate_coding(self, message: str) -> str | None:
+        """Auto-delegate coding tasks to the coding-assistant agent."""
+        try:
+            registered = self._dispatcher.get_registered_agent_ids()
+            if "coding-assistant" not in registered:
+                return None
+            result = await self._dispatcher.dispatch(
+                "coding-assistant", message, 1, self._current_chat_id
+            )
+            logger.info("[AUTO_DELEGATE] Sent coding task to coding-assistant")
+            return result
+        except Exception as e:
+            logger.warning("[AUTO_DELEGATE] Failed: %s", e)
             return None
 
     async def _run_think_loop(self, current_depth: int) -> str:
