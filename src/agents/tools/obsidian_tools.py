@@ -205,6 +205,141 @@ async def _obsidian_daily_note(args: dict[str, Any], ctx: ToolContext | None) ->
         return f"Daily note ({date_str}):\n{text[:2000]}"
 
 
+async def _obsidian_suggest_links(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    text = args.get("text", "").strip()
+    if not text:
+        return "ERROR: 'text' parameter is required."
+
+    import re
+
+    # Extract significant words (4+ chars, not common stopwords)
+    stopwords = {"this", "that", "with", "from", "have", "been", "were", "what",
+                 "when", "where", "which", "their", "there", "about", "would",
+                 "could", "should", "into", "than", "then", "also", "very",
+                 "just", "more", "some", "them", "make", "than", "note"}
+    words = set()
+    for w in re.findall(r"[A-Za-z]{4,}", text.lower()):
+        if w not in stopwords:
+            words.add(w)
+
+    root = vault_path()
+    if not root:
+        return "ERROR: OBSIDIAN_VAULT_PATH not set."
+
+    scored: list[tuple[str, str, int]] = []  # (rel_path, title, score)
+    for fp in all_notes():
+        try:
+            note_text = fp.read_text("utf-8", errors="replace")
+            fm, body = parse_frontmatter(note_text)
+            title = fm.get("title", fp.stem)
+            rel = fp.relative_to(root).as_posix()[:-3]
+
+            # Score: title matches count double, body matches count once
+            score = 0
+            lower_body = body.lower()
+            lower_title = title.lower()
+            for w in words:
+                if w in lower_title:
+                    score += 3
+                if w in lower_body:
+                    score += 1
+
+            if score > 0 and fp.stem.lower() not in text.lower():
+                scored.append((rel, title, score))
+        except Exception:
+            continue
+
+    scored.sort(key=lambda x: -x[2])
+    top = scored[:10]
+
+    if not top:
+        return "No related notes found. The vault might be empty or the text doesn't match existing content."
+
+    parts = [f"Suggested [[wikilinks]] ({len(top)}):"]
+    for rel, title, score in top:
+        parts.append(f"  [[{rel}]]  — {title}")
+    return "\n".join(parts)
+
+
+async def _obsidian_daily_digest(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    from datetime import timedelta
+
+    root = vault_path()
+    if not root:
+        return "ERROR: OBSIDIAN_VAULT_PATH not set."
+
+    today = datetime.now()
+    yesterday = today - timedelta(days=1)
+    date_str = args.get("date", today.strftime("%Y-%m-%d"))
+    folder = args.get("folder", "Daily")
+    target_path = root / folder / f"{date_str}.md"
+    yesterday_path = root / folder / f"{yesterday.strftime('%Y-%m-%d')}.md"
+
+    # 1. Read yesterday's note
+    yesterday_content = ""
+    if yesterday_path.exists():
+        _, y_body = parse_frontmatter(yesterday_path.read_text("utf-8"))
+        yesterday_content = y_body.strip()
+
+    # 2. Scan recently modified notes (last 24h from vault)
+    recent_notes: list[str] = []
+    for fp in all_notes():
+        try:
+            mtime = datetime.fromtimestamp(fp.stat().st_mtime)
+            if mtime > yesterday:
+                fm, _ = parse_frontmatter(fp.read_text("utf-8", errors="replace"))
+                rel = fp.relative_to(root).as_posix()[:-3]
+                recent_notes.append(f"  - [[{rel}]] — {fm.get('title', fp.stem)}")
+        except Exception:
+            continue
+
+    # 3. Build digest content
+    digest_lines = [f"# Morning Brief — {date_str}\n"]
+
+    if yesterday_content:
+        digest_lines.append("## 📝 Yesterday's Notes\n")
+        # Just show a summary of yesterday's content
+        yesterday_summary = yesterday_content[:500]
+        digest_lines.append(yesterday_summary + "\n")
+
+    if recent_notes:
+        digest_lines.append("### 🆕 Recently Modified\n")
+        digest_lines.extend(recent_notes[:10])
+        digest_lines.append("")
+
+    # Find orphan notes and offer suggestions
+    graph: dict[str, set[str]] = {}
+    all_names: set[str] = set()
+    for fp in all_notes():
+        name = fp.stem
+        all_names.add(name)
+        text = fp.read_text("utf-8", errors="replace")
+        graph[name] = set(extract_wikilinks(text))
+
+    orphaned = sorted(
+        n for n in all_names
+        if n not in ("Welcome",)
+        and not any(n in links for links in graph.values())
+        and n.lower() != "daily"
+    )
+    if orphaned:
+        digest_lines.append("\n### 🔗 Notes Without Backlinks\n")
+        digest_lines.append(f"  {len(orphaned)} orphan notes. Try linking them somewhere:\n")
+        for o in orphaned[:5]:
+            digest_lines.append(f"  - [[{o}]]")
+        digest_lines.append("")
+
+    digest = "\n".join(digest_lines)
+
+    # Create or update today's daily note
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    frontmatter = {"title": date_str, "created": date_str, "tags": ["daily", "digest"]}
+    full = build_frontmatter(frontmatter) + digest + "\n## Tasks\n\n## Notes\n\n"
+    target_path.write_text(full, encoding="utf-8")
+
+    return f"Morning brief created: {folder}/{date_str}.md\n\n{digest[:1000]}"
+
+
 def create_obsidian_create_note_tool() -> ToolHandler:
     return ToolHandler(
         definition=ToolDefinition(
@@ -313,4 +448,49 @@ def create_obsidian_daily_note_tool() -> ToolHandler:
             },
         ),
         execute=_obsidian_daily_note,
+    )
+
+
+def create_obsidian_suggest_links_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "obsidian_suggest_links",
+                "description": (
+                    "Analyze text and suggest related [[wikilinks]] to existing vault notes"
+                    " based on keyword matching."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string", "description": "Text to analyze and find related notes for"},
+                    },
+                    "required": ["text"],
+                },
+            },
+        ),
+        execute=_obsidian_suggest_links,
+    )
+
+
+def create_obsidian_daily_digest_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "obsidian_daily_digest",
+                "description": (
+                    "Generate a morning brief: reads yesterday's daily note,"
+                    " finds recently modified files, detects orphans,"
+                    " and creates today's daily note."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "date": {"type": "string", "description": "Date string (default: today, format: YYYY-MM-DD)"},
+                        "folder": {"type": "string", "description": "Subfolder for daily notes (default: 'Daily')"},
+                    },
+                },
+            },
+        ),
+        execute=_obsidian_daily_digest,
     )

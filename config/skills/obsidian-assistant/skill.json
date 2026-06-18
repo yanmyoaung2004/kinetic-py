@@ -7,7 +7,8 @@
     "read_file", "write_file", "list_files",
     "obsidian_create_note", "obsidian_edit_note",
     "obsidian_search", "obsidian_graph_query",
-    "obsidian_daily_note"
+    "obsidian_daily_note", "obsidian_suggest_links",
+    "obsidian_daily_digest"
   ],
   "provider": "",
   "model": ""

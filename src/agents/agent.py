@@ -48,10 +48,12 @@ from src.agents.tools.knowledge_tool import (
 from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
 from src.agents.tools.obsidian_tools import (
     create_obsidian_create_note_tool,
+    create_obsidian_daily_digest_tool,
     create_obsidian_daily_note_tool,
     create_obsidian_edit_note_tool,
     create_obsidian_graph_query_tool,
     create_obsidian_search_tool,
+    create_obsidian_suggest_links_tool,
 )
 from src.agents.tools.pipeline_tool import create_run_pipeline_tool
 from src.agents.tools.registry import (
@@ -280,6 +282,8 @@ class AgentInstance(IAgent):
             self._register_tool(create_obsidian_search_tool())
             self._register_tool(create_obsidian_graph_query_tool())
             self._register_tool(create_obsidian_daily_note_tool())
+            self._register_tool(create_obsidian_suggest_links_tool())
+            self._register_tool(create_obsidian_daily_digest_tool())
 
         logger.info(
             "[SYSTEM] Initialized: %s [%s] tools=%d", self.id, self.config.type, len(self._tools.get_definitions())
