@@ -49,6 +49,7 @@ from src.agents.tools.monitor_tool import create_create_monitor_tool, create_lis
 from src.agents.tools.obsidian_tools import (
     create_obsidian_create_note_tool,
     create_obsidian_daily_note_tool,
+    create_obsidian_edit_note_tool,
     create_obsidian_graph_query_tool,
     create_obsidian_search_tool,
 )
@@ -275,6 +276,7 @@ class AgentInstance(IAgent):
         # Obsidian (only if vault is configured)
         if os.environ.get("OBSIDIAN_VAULT_PATH"):
             self._register_tool(create_obsidian_create_note_tool())
+            self._register_tool(create_obsidian_edit_note_tool())
             self._register_tool(create_obsidian_search_tool())
             self._register_tool(create_obsidian_graph_query_tool())
             self._register_tool(create_obsidian_daily_note_tool())

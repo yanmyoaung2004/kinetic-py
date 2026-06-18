@@ -47,6 +47,42 @@ async def _obsidian_create_note(args: dict[str, Any], ctx: ToolContext | None) -
     return f"Created note: {path_str}"
 
 
+async def _obsidian_edit_note(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    root = vault_path()
+    if not root:
+        return "ERROR: OBSIDIAN_VAULT_PATH not set."
+
+    path_str = args.get("path", "").strip()
+    if not path_str:
+        return "ERROR: 'path' is required (e.g., 'Projects/Idea.md')."
+
+    file_path = (root / path_str).resolve()
+    if not str(file_path).startswith(str(root)):
+        return "ERROR: Path escapes vault."
+    if not file_path.exists():
+        return f"ERROR: Note not found: {path_str}"
+
+    content = args.get("content", "").strip()
+    mode = args.get("mode", "replace")
+
+    if mode == "replace":
+        fm, _ = parse_frontmatter(file_path.read_text("utf-8"))
+        full = build_frontmatter(fm) + content + "\n"
+        file_path.write_text(full, encoding="utf-8")
+        return f"Replaced content in: {path_str}"
+    elif mode == "append":
+        with file_path.open("a", encoding="utf-8") as f:
+            f.write(f"\n{content}\n")
+        return f"Appended to: {path_str}"
+    elif mode == "prepend":
+        fm, body = parse_frontmatter(file_path.read_text("utf-8"))
+        full = build_frontmatter(fm) + content + "\n\n" + body
+        file_path.write_text(full, encoding="utf-8")
+        return f"Prepended to: {path_str}"
+    else:
+        return f"ERROR: Unknown mode '{mode}'. Use replace, append, or prepend."
+
+
 async def _obsidian_search(args: dict[str, Any], ctx: ToolContext | None) -> str:
     query = args.get("query", "").strip().lower()
     tag = args.get("tag", "").strip().lower()
@@ -233,6 +269,30 @@ def create_obsidian_graph_query_tool() -> ToolHandler:
             },
         ),
         execute=_obsidian_graph_query,
+    )
+
+
+def create_obsidian_edit_note_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "obsidian_edit_note",
+                "description": "Edit an existing Obsidian note. Supports replace, append, or prepend mode.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path within vault (e.g., 'Projects/Idea.md')"},
+                        "content": {"type": "string", "description": "Markdown content to write"},
+                        "mode": {
+                            "type": "string",
+                            "description": "'replace' (default), 'append', or 'prepend'",
+                        },
+                    },
+                    "required": ["path"],
+                },
+            },
+        ),
+        execute=_obsidian_edit_note,
     )
 
 
