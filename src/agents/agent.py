@@ -437,14 +437,15 @@ class AgentInstance(IAgent):
             if briefing and not briefing.startswith("ERROR"):
                 return briefing
 
-        # Pre-process: delegate coding tasks to coding-assistant
-        coding_kw = ("write a script", "write code", "write a program", "write a function",
-                     "create a script", "implement", "debug this", "fix this code",
-                     "python script", "javascript code", "bash script")
-        if any(kw in message.lower() for kw in coding_kw):
-            code_result = await self._auto_delegate_coding(message)
-            if code_result:
-                return code_result
+        # Pre-process: delegate coding tasks to coding-assistant (only from main agent, not sub-agents)
+        if current_depth == 0:
+            coding_kw = ("write a script", "write code", "write a program", "write a function",
+                         "create a script", "implement", "debug this", "fix this code",
+                         "python script", "javascript code", "bash script")
+            if any(kw in message.lower() for kw in coding_kw):
+                code_result = await self._auto_delegate_coding(message)
+                if code_result:
+                    return code_result
 
         # Stage 1: Classify (multi mode)
         if self._mode == "multi" and self._classify_providers:
@@ -688,7 +689,12 @@ class AgentInstance(IAgent):
             result = await self._dispatcher.dispatch(
                 "coding-assistant", message, 1, self._current_chat_id
             )
-            logger.info("[AUTO_DELEGATE] Sent coding task to coding-assistant")
+            # Record delegation in memory so "thanks" doesn't retrigger
+            self._memory.append(ChatMessage(
+                role="system",
+                content="[coding-assistant handled this request]"
+            ))
+            logger.info("[AUTO_DELEGATE] coding-assistant handled: %s", message[:60])
             return result
         except Exception as e:
             logger.warning("[AUTO_DELEGATE] Failed: %s", e)
