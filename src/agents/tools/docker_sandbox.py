@@ -102,12 +102,16 @@ async def run_in_docker(code: str, image: str = IMAGE) -> str:
     """Run Python code in the persistent sandbox container."""
     if not _docker_available():
         logger.info("[SANDBOX] Docker not available — falling back to subprocess")
-        return await _fallback_subprocess(code)
+        result = await _fallback_subprocess(code)
+        return f"[Subprocess] {result}"
 
     container = _ensure_container()
     if not container:
         logger.info("[SANDBOX] Could not start container — falling back to subprocess")
-        return await _fallback_subprocess(code)
+        result = await _fallback_subprocess(code)
+        return f"[Subprocess] {result}"
+
+    logger.info("[SANDBOX] Running in Docker container %s", container)
 
     # Write code to a temp file and copy into container
     with tempfile.TemporaryDirectory(prefix="kinetic_") as tmpdir:
@@ -144,7 +148,8 @@ async def run_in_docker(code: str, image: str = IMAGE) -> str:
                 output += f"\n[stderr]\n{stderr.decode('utf-8', errors='replace')}"
             if proc.returncode != 0:
                 output = f"Exit code: {proc.returncode}\n{output}"
-            return output.strip() or "(no output)"
+            result = output.strip() or "(no output)"
+            return f"[Docker] {result}"
         except Exception as e:
             return f"ERROR: {e}"
 

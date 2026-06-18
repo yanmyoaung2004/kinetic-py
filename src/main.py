@@ -109,6 +109,13 @@ def _convert_markdown(text: str) -> str:
 
     # Newlines
     text = re.sub(r"\n{2,}", "\n\n", text)
+
+    # Safety: if HTML is malformed (unmatched tags), fall back to plain text
+    if text.count("<code>") != text.count("</code>") or text.count("<pre>") != text.count("</pre>"):
+        return html.unescape(re.sub(r"<[^>]+>", "", text))
+    if text.count("<b>") != text.count("</b>") or text.count("<i>") != text.count("</i>"):
+        return html.unescape(re.sub(r"<[^>]+>", "", text))
+
     return text
 
 
@@ -348,6 +355,20 @@ class KinetiCBot:
                 safe = safe[:4000] + "\n\n... (truncated)"
             await msg.reply_text(safe, parse_mode="HTML")
             await self._send_pending_files(chat_id, update)
+
+            # Check if agent has a pending coding task (for follow-up result)
+            main_agent = self.dispatcher._active_agents.get(self._agent_target)
+            if main_agent and hasattr(main_agent, "_pending_coding_task"):
+                coding_task = main_agent._pending_coding_task
+                if coding_task and not coding_task.done():
+                    new_typing = asyncio.create_task(_typing_indicator(msg.chat, coding_task))
+                    coding_result = await coding_task
+                    new_typing.cancel()
+                    if coding_result:
+                        safe_result = _convert_markdown(coding_result or "")
+                        if safe_result:
+                            await msg.reply_text(safe_result, parse_mode="HTML")
+                            await self._send_pending_files(chat_id, update)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
         finally:

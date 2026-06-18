@@ -232,6 +232,7 @@ class AgentInstance(IAgent):
         self._dispatcher = dispatcher
         self._mode = mode
         self._current_chat_id: int | None = None
+        self._pending_coding_task: Any = None
         self._MAX_ITERATIONS = 5
 
         self._think_providers = _create_think_providers(think_stage, endpoints)
@@ -439,10 +440,14 @@ class AgentInstance(IAgent):
 
         # Pre-process: delegate coding tasks to coding-assistant (only from main agent, not sub-agents)
         if current_depth == 0:
-            coding_kw = ("write a script", "write code", "write a program", "write a function",
-                         "create a script", "implement", "debug this", "fix this code",
-                         "python script", "javascript code", "bash script")
-            if any(kw in message.lower() for kw in coding_kw):
+            lowered = message.lower()
+            # Use broader individual-word matching: if "write" + "function"/"script"/"code"/"program" all appear
+            has_write = any(w in lowered for w in ("write", "create", "implement", "debug", "fix"))
+            has_coding = any(w in lowered for w in ("function", "script", "code", "program",
+                                                      "class", "module", "test", "implement",
+                                                      "python", "javascript", "typescript",
+                                                      "bash", "shell", "algorithm"))
+            if has_write and has_coding:
                 code_result = await self._auto_delegate_coding(message)
                 if code_result:
                     return code_result
@@ -686,16 +691,27 @@ class AgentInstance(IAgent):
             registered = self._dispatcher.get_registered_agent_ids()
             if "coding-assistant" not in registered:
                 return None
-            result = await self._dispatcher.dispatch(
-                "coding-assistant", message, 1, self._current_chat_id
-            )
-            # Record delegation in memory so "thanks" doesn't retrigger
-            self._memory.append(ChatMessage(
-                role="system",
-                content="[coding-assistant handled this request]"
-            ))
-            logger.info("[AUTO_DELEGATE] coding-assistant handled: %s", message[:60])
-            return result
+            logger.info("[AUTO_DELEGATE] Sending to coding-assistant...")
+            # Start coding assistant in background
+            async def _run_coding() -> str:
+                try:
+                    result = await self._dispatcher.dispatch(
+                        "coding-assistant", message, 1, self._current_chat_id
+                    )
+                    self._memory.append(ChatMessage(
+                        role="system",
+                        content=f"[coding-assistant result]:\n{result}"
+                    ))
+                    logger.info("[AUTO_DELEGATE] coding-assistant done: %s", message[:60])
+                    return result
+                except Exception as e:
+                    logger.warning("[AUTO_DELEGATE] coding failed: %s", e)
+                    return ""
+
+            task = asyncio.create_task(_run_coding())
+            # Store task so main.py can await it for follow-up send
+            self._pending_coding_task = task
+            return "Let me have my coding assistant handle this... One moment!"
         except Exception as e:
             logger.warning("[AUTO_DELEGATE] Failed: %s", e)
             return None
