@@ -636,6 +636,7 @@ async def _obsidian_spaced_repetition(args: dict[str, Any], ctx: ToolContext | N
             return "No flashcards found in your vault. Add #flashcard tag or use Question::Answer format."
 
         import random
+
         sample = random.sample(flashcards, min(5, len(flashcards)))
         lines = [f"Quiz ({len(sample)} questions):\n"]
         for i, card in enumerate(sample, 1):
@@ -645,6 +646,7 @@ async def _obsidian_spaced_repetition(args: dict[str, Any], ctx: ToolContext | N
 
     if action == "csv":
         import io
+
         buf = io.StringIO()
         for card in flashcards:
             escaped_q = card["question"].replace('"', '""')
@@ -657,8 +659,7 @@ async def _obsidian_spaced_repetition(args: dict[str, Any], ctx: ToolContext | N
         return "No flashcards found. Add #flashcard tag or Question::Answer format to your notes."
 
     return f"Flashcards found: {len(flashcards)}\n\n" + "\n".join(
-        f"  • {c['question'][:60]} → {c['answer'][:60]}  ([[{c['note']}]])"
-        for c in flashcards[:15]
+        f"  • {c['question'][:60]} → {c['answer'][:60]}  ([[{c['note']}]])" for c in flashcards[:15]
     )
 
 
@@ -703,9 +704,7 @@ def create_obsidian_spaced_repetition_tool() -> ToolHandler:
                         "action": {
                             "type": "string",
                             "description": (
-                                "'list' (default) to show all,"
-                                " 'quiz' for sample questions,"
-                                " 'csv' for Anki export"
+                                "'list' (default) to show all, 'quiz' for sample questions, 'csv' for Anki export"
                             ),
                         },
                     },

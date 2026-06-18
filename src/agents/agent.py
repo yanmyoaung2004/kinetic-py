@@ -159,6 +159,10 @@ GLOBAL_PROTOCOLS = """
 - obsidian_spaced_repetition with action=csv already returns the full CSV text
   in its response. Do NOT write it to a file or try to send it separately —
   just show the CSV text directly. The tool result IS the file content.
+- CRITICAL: When the user asks you to create a presentation, you MUST
+  call create_presentation with the slides data. Do NOT just describe what
+  the presentation would look like or show JSON. The file only exists
+  if you actually call the tool.
 - For complex multi-perspective tasks, use spawn_swarm to run multiple
   specialists in parallel instead of calling spawn_specialist sequentially.
   Swarms are faster for research, analysis, and creative work.
@@ -914,6 +918,7 @@ Conversation:
             agents = agents[:5]
 
         try:
+
             async def _run_agent(spec: dict) -> tuple[str, str]:
                 sub_id = await self._dispatcher.create_sub_agent(
                     self.id,
@@ -964,9 +969,7 @@ Conversation:
             return
 
         recent = messages[-30:]
-        conversation = "\n".join(
-            f"{m.role}: {m.content[:300]}" for m in recent if m.content and m.role != "system"
-        )
+        conversation = "\n".join(f"{m.role}: {m.content[:300]}" for m in recent if m.content and m.role != "system")
 
         try:
             response = await call_with_fallback(
