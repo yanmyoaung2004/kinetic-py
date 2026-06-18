@@ -37,6 +37,7 @@ from src.agents.tools.file_tools import (
     create_undo_file_tool,
     create_write_file_tool,
 )
+from src.agents.tools.image_search import create_image_search_tool
 from src.agents.tools.image_tool import create_generate_image_tool
 from src.agents.tools.knowledge_tool import (
     create_index_file_tool,
@@ -163,6 +164,10 @@ GLOBAL_PROTOCOLS = """
   call create_presentation with the slides data. Do NOT just describe what
   the presentation would look like or show JSON. The file only exists
   if you actually call the tool.
+- When creating presentations, use search_images to find relevant web
+  images for slides instead of generating them with AI. Search images
+  is faster, free, and gives real photos. Use download=true to save
+  them to the sandbox, then reference them in create_presentation.
 - For complex multi-perspective tasks, use spawn_swarm to run multiple
   specialists in parallel instead of calling spawn_specialist sequentially.
   Swarms are faster for research, analysis, and creative work.
@@ -341,6 +346,7 @@ class AgentInstance(IAgent):
         self._register_tool(create_run_code_tool())
         # Image generation
         self._register_tool(create_generate_image_tool())
+        self._register_tool(create_image_search_tool())
         # Skills discovery
         self._register_tool(create_list_skills_tool())
         # Presentations
