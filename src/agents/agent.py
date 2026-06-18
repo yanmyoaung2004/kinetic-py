@@ -83,6 +83,8 @@ from src.agents.tools.system_tools import (
     create_get_system_info_tool,
     create_read_env_var_tool,
 )
+from src.agents.tools.zip_tool import create_zip_tool, create_unzip_tool
+from src.agents.tools.git_tool import create_git_tool
 from src.agents.tools.weather_tool import create_weather_tool
 from src.agents.tools.youtube_tool import create_youtube_info_tool
 from src.providers.provider import UnifiedProvider, UnifiedProviderConfig, call_with_fallback
@@ -365,6 +367,9 @@ class AgentInstance(IAgent):
         self._register_tool(create_generate_image_tool())
         self._register_tool(create_image_search_tool())
         self._register_tool(create_youtube_info_tool())
+        self._register_tool(create_zip_tool())
+        self._register_tool(create_unzip_tool())
+        self._register_tool(create_git_tool())
         # OpenCode tools only for main agent
         if agent_id == "main":
             self._register_tool(create_call_opencode_tool())
@@ -742,8 +747,11 @@ class AgentInstance(IAgent):
     async def _run_opencode(self, message: str) -> str:
         """Run OpenCode in background and store result."""
         from src.agents.tools.opencode_tool import _call_opencode
+        # Strip "opencode" prefix from task so OpenCode isn't confused
+        import re as _re
+        clean = _re.sub(r"^\s*(opencode|open\s+code)\s*", "", message, flags=_re.IGNORECASE).strip()
         try:
-            result = await _call_opencode({"task": message}, ToolContext(chat_id=self._current_chat_id))
+            result = await _call_opencode({"task": clean}, ToolContext(chat_id=self._current_chat_id))
             if result:
                 self._memory.append(ChatMessage(role="system", content="[opencode handled this task]"))
             return result or "OpenCode returned no result."

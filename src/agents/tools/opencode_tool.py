@@ -61,10 +61,10 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
             cwd=str(project_path),
         )
         try:
-            stdout_bytes, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
+            stdout_bytes, _ = await asyncio.wait_for(proc.communicate(), timeout=600)
         except TimeoutError:
             proc.kill()
-            return "ERROR: OpenCode task timed out after 5 minutes."
+            return "ERROR: OpenCode task timed out after 10 minutes."
     except FileNotFoundError:
         return "ERROR: 'opencode' not found. Install OpenCode first."
 
@@ -122,10 +122,10 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
         pass
 
     # Build summary
-    summary_parts = [f"OpenCode completed task: {task[:80]}"]
+    summary_parts = [f"OpenCode completed: {task[:80]}"]
 
     if files_changed:
-        summary_parts.append(f"\nFiles modified ({len(files_changed)}):")
+        summary_parts.append(f"\nFiles ({len(files_changed)}):")
         for f in files_changed:
             rel = Path(f["path"])
             try:
@@ -134,21 +134,24 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
                 rel_path = rel
             summary_parts.append(f"  • {rel_path}")
     else:
-        summary_parts.append("\nNo files were modified.")
+        summary_parts.append("\nNo files written.")
 
     if total_cost > 0:
-        summary_parts.append(f"\nToken cost: ${total_cost:.5f}")
+        summary_parts.append(f"\nCost: ${total_cost:.5f}")
+    else:
+        summary_parts.append("\nCost: N/A (model may have failed)")
 
     if diff_after:
-        # Truncate diff if very long
         if len(diff_after) > 2000:
-            diff_after = diff_after[:2000] + "\n... (diff truncated)"
+            diff_after = diff_after[:2000] + "\n...(truncated)"
         summary_parts.append(f"\nDiff:\n{diff_after}")
 
     if final_text:
-        summary_parts.append(f"\nOpenCode says: {final_text[:500].strip()}")
+        summary_parts.append(f"\nOpenCode says:\n{final_text[:1000].strip()}")
+    else:
+        summary_parts.append(f"\n(No response from OpenCode — model may not support the task)")
 
-    # Store files_changed in a temp marker so apply/reject can use it
+    # Store
     _pending_opencode[task] = {
         "files": files_changed,
         "project": str(project_path),
