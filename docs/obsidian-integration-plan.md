@@ -194,6 +194,21 @@ run daily digest for today
 generate my morning brief
 ```
 
+### obsidian_canvas_add
+```
+add a card to Brainstorm.canvas titled "Multi-Agent Design" with notes about orchestration patterns
+create a canvas called "Project Ideas.canvas" and add a card about RAG pipelines
+add a card to Brainstorm.canvas titled "TODO" colored red
+```
+
+### obsidian_spaced_repetition
+```
+show me all flashcards in my vault
+quiz me on my flashcards
+export flashcards as CSV for Anki
+list flashcards from my notes
+```
+
 ---
 
 ## Dependency

@@ -10,7 +10,7 @@ from typing import Any
 
 import dotenv
 import structlog
-from telegram import Update
+from telegram import Chat, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from src.agents.orchestrator import KinetiCDispatcher
@@ -40,6 +40,7 @@ logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
 for noisy in ("httpx", "httpcore", "telegram", "urllib3"):
     logging.getLogger(noisy).setLevel(logging.WARNING)
 logger = structlog.get_logger("kinetic")
+_shutting_down: asyncio.Event | None = None
 
 MODELS_CONFIG = os.environ.get("MODELS_CONFIG", "config/models.json")
 AGENTS_CONFIG = os.environ.get("AGENTS_CONFIG", "config/agents.json")
@@ -109,6 +110,16 @@ def _convert_markdown(text: str) -> str:
     # Newlines
     text = re.sub(r"\n{2,}", "\n\n", text)
     return text
+
+
+async def _typing_indicator(chat: Chat, task: asyncio.Task) -> None:
+    """Keep the typing indicator alive until the task finishes."""
+    while not task.done():
+        try:
+            await chat.send_action("typing")
+        except Exception:
+            pass
+        await asyncio.sleep(4)
 
 
 class KinetiCBot:
@@ -328,9 +339,10 @@ class KinetiCBot:
             return
 
         assert msg.chat is not None
-        await msg.chat.send_action("typing")
+        task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, text, 0, chat_id))
+        typing = asyncio.create_task(_typing_indicator(msg.chat, task))
         try:
-            response = await self.dispatcher.dispatch(self._agent_target, text, 0, chat_id)
+            response = await task
             safe = _convert_markdown(response or "(no response)")
             if len(safe) > 4000:
                 safe = safe[:4000] + "\n\n... (truncated)"
@@ -338,6 +350,8 @@ class KinetiCBot:
             await self._send_pending_files(chat_id, update)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
+        finally:
+            typing.cancel()
 
     async def _send_pending_files(self, chat_id: int, update: Update) -> None:
         files = get_pending_files(chat_id)
@@ -362,7 +376,6 @@ class KinetiCBot:
         caption = (msg.caption or "").strip()
 
         assert msg.chat is not None
-        await msg.chat.send_action("typing")
 
         try:
             from telegram import Document, PhotoSize
@@ -378,8 +391,6 @@ class KinetiCBot:
             filename = getattr(
                 attachment, "file_name", file.file_path.split("/")[-1] if file.file_path else "unknown.txt"
             )
-
-            from pathlib import Path
 
             sandbox = Path("agent_sandbox")
             sandbox.mkdir(exist_ok=True)
@@ -402,9 +413,12 @@ class KinetiCBot:
             if caption:
                 full_message += f"\n\nUser message: {caption}"
 
-            response = await self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id)
+            task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
+            typing = asyncio.create_task(_typing_indicator(msg.chat, task))
+            response = await task
             safe = _convert_markdown(response)
             await msg.reply_text(safe, parse_mode="HTML")
+            typing.cancel()
             await self._send_pending_files(chat_id, update)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
@@ -457,10 +471,15 @@ class KinetiCBot:
         logger.info("[MAIN] K.I.N.E.T.I.C. is running.")
 
         # Keep running until interrupted
-        await asyncio.Event().wait()
+        global _shutting_down
+        if _shutting_down:
+            await _shutting_down.wait()
+        else:
+            await asyncio.Event().wait()
 
     async def _scheduler_loop(self) -> None:
-        while True:
+        global _shutting_down
+        while not (_shutting_down and _shutting_down.is_set()):
             try:
                 from src.agents.tasks.scheduler import get_overdue_tasks, mark_task_run
 
@@ -507,16 +526,20 @@ class KinetiCBot:
         logger.info("[API] Web UI at http://localhost:%d", API_PORT)
         try:
             await server.serve()
-        except SystemExit:
-            logger.warning("[API] Port %d already in use.", API_PORT)
+        except (Exception, KeyboardInterrupt, asyncio.CancelledError):
+            pass
 
 
 def main() -> None:
+    global _shutting_down
+    _shutting_down = asyncio.Event()
     bot = KinetiCBot()
 
-    async def _shutdown(sig: str) -> None:
-        logger.info("[SHUTDOWN] Received %s. Stopping...", sig)
-        sys.exit(0)
+    async def _shutdown() -> None:
+        if _shutting_down.is_set():
+            return
+        logger.info("[SHUTDOWN] Stopping...")
+        _shutting_down.set()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -525,15 +548,32 @@ def main() -> None:
         try:
             loop.add_signal_handler(
                 getattr(signal, sig),
-                lambda: asyncio.create_task(_shutdown(sig)),
+                lambda: asyncio.ensure_future(_shutdown()),
             )
         except (NotImplementedError, AttributeError):
             pass
 
     try:
         loop.run_until_complete(bot.start())
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         pass
+    finally:
+        # Cancel all remaining tasks gracefully
+        pending = asyncio.all_tasks(loop)
+        for t in pending:
+            t.cancel()
+        if pending:
+            try:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            except Exception:
+                pass
+        if not loop.is_closed():
+            try:
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            except Exception:
+                pass
+            loop.close()
+        logger.info("[MAIN] Stopped.")
 
 
 if __name__ == "__main__":

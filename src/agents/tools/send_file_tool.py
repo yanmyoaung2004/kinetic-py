@@ -12,9 +12,14 @@ SANDBOX = Path("agent_sandbox")
 
 # Pending files for each chat_id — populated by the tool, consumed by main.py
 _pending: dict[int, list[dict[str, Any]]] = {}
+_sent_paths: set[tuple[int, str]] = set()  # (chat_id, resolved_path) to prevent duplicates
 
 
 def get_pending_files(chat_id: int) -> list[dict[str, Any]]:
+    # Cleanup sent-file tracking for this chat
+    stale = [k for k in _sent_paths if k[0] == chat_id]
+    for k in stale:
+        _sent_paths.discard(k)
     return _pending.pop(chat_id, [])
 
 
@@ -39,6 +44,11 @@ async def _send_file(args: dict[str, Any], ctx: ToolContext | None) -> str:
     if not chat_id:
         return "ERROR: No chat_id available to send file."
 
+    resolved = str(file_path.resolve())
+    key = (chat_id, resolved)
+    if key in _sent_paths:
+        return f"File '{file_path.name}' already queued — skipping duplicate."
+
     content = file_path.read_bytes()
     _pending.setdefault(chat_id, []).append(
         {
@@ -46,6 +56,7 @@ async def _send_file(args: dict[str, Any], ctx: ToolContext | None) -> str:
             "content": content,
         }
     )
+    _sent_paths.add(key)
 
     return f"File '{file_path.name}' will be sent to you."
 

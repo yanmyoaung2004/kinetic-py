@@ -97,6 +97,37 @@ SPAWN_SPECIALIST_DEF: ToolDefinition = ToolDefinition(
     },
 )
 
+SPAWN_SWARM_DEF: ToolDefinition = ToolDefinition(
+    function={
+        "name": "spawn_swarm",
+        "description": (
+            "Spawns MULTIPLE sub-agents in parallel to work on different"
+            " aspects of a complex task, then merges their results."
+            " Use for research, analysis, or multi-perspective tasks."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string", "description": "The overall task description"},
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Agent name / focus area"},
+                            "soul": {"type": "string", "description": "System prompt for this specialist"},
+                            "task": {"type": "string", "description": "Specific sub-task for this agent"},
+                        },
+                        "required": ["name", "soul", "task"],
+                    },
+                    "description": "List of 2-5 agents to spawn in parallel",
+                },
+            },
+            "required": ["task", "agents"],
+        },
+    },
+)
+
 CURRENT_YEAR = 2026
 
 GLOBAL_PROTOCOLS = """
@@ -124,6 +155,12 @@ GLOBAL_PROTOCOLS = """
   DO NOT answer from your training data — your vault is the source of truth.
 - For "suggest links" or "find related notes" requests, call obsidian_suggest_links
   with the topic text. It searches the actual vault notes by keyword.
+- obsidian_spaced_repetition with action=csv already returns the full CSV text
+  in its response. Do NOT write it to a file or try to send it separately —
+  just show the CSV text directly. The tool result IS the file content.
+- For complex multi-perspective tasks, use spawn_swarm to run multiple
+  specialists in parallel instead of calling spawn_specialist sequentially.
+  Swarms are faster for research, analysis, and creative work.
 """
 
 
@@ -232,6 +269,12 @@ class AgentInstance(IAgent):
                 ToolHandler(
                     definition=SPAWN_SPECIALIST_DEF,
                     execute=lambda args, ctx: self._execute_spawn_specialist(args),
+                )
+            )
+            self._register_tool(
+                ToolHandler(
+                    definition=SPAWN_SWARM_DEF,
+                    execute=lambda args, ctx: self._execute_spawn_swarm(args),
                 )
             )
 
@@ -426,6 +469,12 @@ class AgentInstance(IAgent):
             if self._memory.needs_compression():
                 try:
                     await self._compress_history()
+                except Exception:
+                    pass
+            # SOUL evolution every 15 user messages
+            if msg_count > 0 and msg_count % 15 == 0:
+                try:
+                    await self._evolve_soul()
                 except Exception:
                     pass
 
@@ -849,3 +898,103 @@ Conversation:
             return await self._dispatcher.dispatch(sub_id, args["task"], current_depth + 1)
         except Exception as e:
             return f"CRITICAL_ERROR: Failed to spawn specialist: {e}"
+
+    async def _execute_spawn_swarm(self, args: dict, current_depth: int = 0) -> str:
+        agents = args.get("agents", [])
+        if not agents or len(agents) < 2:
+            return "ERROR: Swarm needs at least 2 agents."
+        if len(agents) > 5:
+            agents = agents[:5]
+
+        try:
+            async def _run_agent(spec: dict) -> tuple[str, str]:
+                sub_id = await self._dispatcher.create_sub_agent(
+                    self.id,
+                    {"name": spec["name"], "soul": spec["soul"], "model": ""},
+                )
+                result = await self._dispatcher.dispatch(sub_id, spec["task"], current_depth + 1)
+                return (spec["name"], result)
+
+            results = await asyncio.gather(*[_run_agent(a) for a in agents], return_exceptions=True)
+
+            parts = []
+            for r in results:
+                if isinstance(r, tuple):
+                    name, text = r
+                    parts.append(f"## {name}\n{text}")
+                elif isinstance(r, Exception):
+                    parts.append(f"## Error\n{r}")
+
+            merged = "\n\n".join(parts)
+
+            # Synthesize final response using the main agent's LLM
+            synthesis_prompt = (
+                f"Task: {args.get('task', '')}\n\n"
+                f"Responses from {len(agents)} specialists:\n\n{merged}\n\n"
+                "Synthesize these into a coherent, concise final answer."
+            )
+            synthesis = await call_with_fallback(
+                self._think_providers,
+                lambda p: p.generate(
+                    [
+                        ChatMessage(
+                            role="system",
+                            content="You merge multiple expert analyses into one clear answer.",
+                        ),
+                        ChatMessage(role="user", content=synthesis_prompt),
+                    ]
+                ),
+            )
+            return synthesis.content or merged
+        except Exception as e:
+            return f"SWARM_ERROR: {e}"
+
+    async def _evolve_soul(self) -> None:
+        """Analyze recent conversations and improve SOUL.md."""
+        messages = self._memory.get_messages()
+        user_msgs = [m for m in messages if m.role == "user"]
+        if len(user_msgs) < 10:
+            return
+
+        recent = messages[-30:]
+        conversation = "\n".join(
+            f"{m.role}: {m.content[:300]}" for m in recent if m.content and m.role != "system"
+        )
+
+        try:
+            response = await call_with_fallback(
+                self._think_providers,
+                lambda p: p.generate(
+                    [
+                        ChatMessage(
+                            role="system",
+                            content=(
+                                "You analyze conversations to improve an AI assistant's SOUL.md"
+                                " (personality file). Based on the recent chat, suggest 2-3 specific"
+                                " improvements to the assistant's behavior, tone, or capabilities."
+                                " Output ONLY the suggested improvements as bullet points."
+                            ),
+                        ),
+                        ChatMessage(role="user", content=f"Recent conversation:\n\n{conversation[:2000]}"),
+                    ]
+                ),
+            )
+            if not response.content:
+                return
+
+            soul_path = Path("config") / self.id / "SOUL.md"
+            if not soul_path.exists():
+                return
+
+            # Backup current SOUL
+            backup = soul_path.read_text("utf-8")
+            (Path("config") / self.id / "SOUL.md.bak").write_text(backup, encoding="utf-8")
+
+            # Append evolution suggestions
+            with soul_path.open("a", encoding="utf-8") as f:
+                f.write(f"\n\n## Auto-Evolution ({__import__('datetime').datetime.now().strftime('%Y-%m-%d')})\n")
+                f.write(f"{response.content}\n")
+
+            logger.info("[SOUL] Evolved %s", self.id)
+        except Exception as e:
+            logger.warning("[SOUL] Evolution failed: %s", e)
