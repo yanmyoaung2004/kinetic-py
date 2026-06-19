@@ -67,8 +67,8 @@ def create_send_file_tool() -> ToolHandler:
             function={
                 "name": "send_file",
                 "description": (
-                    "Send a file from the sandbox to the user via Telegram. "
-                    "Call this after creating a file with write_file."
+                    "Send a file from agent_sandbox/ to the user via Telegram. "
+                    "Call this after sandbox_write_file or OpenCode creates output."
                 ),
                 "parameters": {
                     "type": "object",

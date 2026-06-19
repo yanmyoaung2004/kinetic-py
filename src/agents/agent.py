@@ -764,7 +764,7 @@ class AgentInstance(IAgent):
                                 {
                                     "id": "auto_0",
                                     "type": "function",
-                                    "function": {"name": "write_file", "arguments": response.content},
+                                    "function": {"name": "sandbox_write_file", "arguments": response.content},
                                 }
                             ]
                             response.content = None

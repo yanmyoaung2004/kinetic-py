@@ -60,8 +60,13 @@ def create_read_file_tool() -> ToolHandler:
     return ToolHandler(
         definition=ToolDefinition(
             function={
-                "name": "read_file",
-                "description": "Read a file from the temporary agent_sandbox/ directory (not your Obsidian vault).",
+                "name": "sandbox_read_file",
+                "description": (
+                    "Read a file from agent_sandbox/ (temporary workspace). "
+                    "Use this for: checking downloaded files, reading code output, "
+                    "viewing uploaded documents. "
+                    "NOT for Obsidian vault notes — use obsidian_search instead."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -96,11 +101,12 @@ def create_write_file_tool() -> ToolHandler:
     return ToolHandler(
         definition=ToolDefinition(
             function={
-                "name": "write_file",
+                "name": "sandbox_write_file",
                 "description": (
-                    "Write a file to the temporary agent_sandbox/ directory"
-                    " (code, data, exports — NOT your Obsidian vault)."
-                    " Use obsidian_create_note for permanent notes."
+                    "Write a file to agent_sandbox/. "
+                    "Use for: saving generated code, exporting data, creating temp files. "
+                    "NOT for Obsidian vault notes — use obsidian_create_note instead. "
+                    "After writing, use sandbox_read_file to verify or send_file to send."
                 ),
                 "parameters": {
                     "type": "object",
@@ -145,9 +151,10 @@ def create_edit_file_tool() -> ToolHandler:
     return ToolHandler(
         definition=ToolDefinition(
             function={
-                "name": "edit_file",
+                "name": "sandbox_edit_file",
                 "description": (
-                    "Edit a file by replacing the first occurrence of text. A backup is saved before editing."
+                    "Edit a file in agent_sandbox/. A backup is saved before editing."
+                    " Use for modifying generated code. NOT for Obsidian notes."
                 ),
                 "parameters": {
                     "type": "object",
@@ -186,8 +193,8 @@ def create_delete_file_tool() -> ToolHandler:
     return ToolHandler(
         definition=ToolDefinition(
             function={
-                "name": "delete_file",
-                "description": "Delete a file from the sandbox. A backup is saved before deletion.",
+                "name": "sandbox_delete_file",
+                "description": "Delete a file from agent_sandbox/. Use for cleaning up temp files only.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -220,8 +227,8 @@ def create_undo_file_tool() -> ToolHandler:
     return ToolHandler(
         definition=ToolDefinition(
             function={
-                "name": "undo_file",
-                "description": "Revert a file to its previous version using the most recent backup.",
+                "name": "sandbox_undo_file",
+                "description": "Undo the last sandbox file operation by restoring from backup.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -265,8 +272,12 @@ def create_list_files_tool() -> ToolHandler:
     return ToolHandler(
         definition=ToolDefinition(
             function={
-                "name": "list_files",
-                "description": "List files and directories within the sandbox.",
+                "name": "sandbox_list_files",
+                "description": (
+                    "List files in agent_sandbox/. "
+                    "Use for: checking uploaded files, finding generated output. "
+                    "NOT for listing Obsidian vault — there's no vault listing tool."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {

@@ -427,23 +427,69 @@ class KinetiCBot:
             sandbox = Path("agent_sandbox")
             sandbox.mkdir(exist_ok=True)
             file_path = sandbox / filename
-
             await file.download_to_drive(file_path)
 
-            result = read_file(file_path)
-            if result.get("error"):
-                await msg.reply_text(f"Error reading file: {result['error']}")
+            is_image = filename.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"))
+
+            if is_image:
+                # Use Groq vision to analyze the image
+                from src.agents.tools.groq_media import analyze_image
+
+                await msg.chat.send_action("typing")
+                vision_prompt = caption or "Describe this image in detail."
+                description = await analyze_image(str(file_path), vision_prompt)
+                full_message = f"[Image uploaded and analyzed via Groq vision]\n{description}"
+                if caption:
+                    full_message += f"\n\nUser said: {caption}"
+            else:
+                # Text-based file handling
+                result = read_file(file_path)
+                if result.get("error"):
+                    await msg.reply_text(f"Error reading file: {result['error']}")
+                    return
+                label = get_type_label(result)
+                file_info = f"[Uploaded via Telegram — {label}: {result['name']} ({result.get('size', 0)} bytes)]\n\n"
+                file_content = result.get("content", "")
+                if len(file_content) > 50000:
+                    file_content = file_content[:50000] + "\n\n[...truncated]"
+                full_message = f"{file_info}{file_content}"
+                if caption:
+                    full_message += f"\n\nUser message: {caption}"
+
+            task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
+            typing = asyncio.create_task(_typing_indicator(msg.chat, task))
+            response = await task
+            safe = _convert_markdown(response)
+            await _send_long_message(msg, safe)
+            typing.cancel()
+            await self._send_pending_files(chat_id, update)
+        except Exception as e:
+            await msg.reply_text(f"Error: {e}")
+
+    async def handle_voice(self, update: Update, context: Any = None) -> None:
+        msg = update.message
+        if msg is None or not msg.voice:
+            return
+        chat_id = msg.chat_id
+
+        assert msg.chat is not None
+        await msg.chat.send_action("typing")
+
+        try:
+            file = await msg.voice.get_file()
+            sandbox = Path("agent_sandbox")
+            sandbox.mkdir(exist_ok=True)
+            file_path = sandbox / f"voice_{msg.voice.file_id[:10]}.ogg"
+            await file.download_to_drive(file_path)
+
+            from src.agents.tools.groq_media import transcribe_audio
+            text = await transcribe_audio(str(file_path))
+            if text.startswith("ERROR"):
+                await msg.reply_text(text)
                 return
 
-            label = get_type_label(result)
-            file_info = f"[Uploaded via Telegram — {label}: {result['name']} ({result.get('size', 0)} bytes)]\n\n"
-            file_content = result.get("content", "")
-            if len(file_content) > 50000:
-                file_content = file_content[:50000] + "\n\n[...truncated]"
-
-            full_message = f"{file_info}{file_content}"
-            if caption:
-                full_message += f"\n\nUser message: {caption}"
+            file_path.unlink(missing_ok=True)
+            full_message = f"[Voice transcribed]: {text}"
 
             task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
@@ -468,6 +514,7 @@ class KinetiCBot:
                 app = Application.builder().token(token).build()
                 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
                 app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, self.handle_file))
+                app.add_handler(MessageHandler(filters.VOICE, self.handle_voice))
                 app.add_handler(
                     CommandHandler(
                         [

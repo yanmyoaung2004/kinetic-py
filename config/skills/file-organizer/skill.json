@@ -3,7 +3,7 @@
   "name": "File Organizer",
   "description": "Read, write, edit, delete, and organize files in the workspace sandbox",
   "version": "1.0.0",
-  "tools": ["read_file", "write_file", "edit_file", "delete_file", "list_files", "undo_file", "download_url"],
+  "tools": ["sandbox_read_file", "sandbox_write_file", "sandbox_edit_file", "sandbox_delete_file", "sandbox_list_files", "sandbox_undo_file", "download_url"],
   "provider": "",
   "model": ""
 }
