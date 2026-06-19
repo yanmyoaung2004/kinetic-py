@@ -210,6 +210,7 @@ Include:
 - What was being worked on or discussed
 - The assistant's last response
 - Any ongoing tasks or projects
+- Code execution environment if mentioned (Docker, subprocess, etc.)
 
 Keep it under 200 words. Write in third person.
 
