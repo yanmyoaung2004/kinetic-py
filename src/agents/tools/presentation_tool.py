@@ -500,8 +500,12 @@ def create_presentation_tool() -> ToolHandler:
             await _build_slide(prs, stitle, content, layout, notes, st, sw, sh, img_src, img_pos, cht, chd)
 
         if transition in TRANSITIONS:
-            for s in prs.slides:
-                s.slide_show_transition.transition_type = TRANSITIONS[transition]
+            try:
+                for s in prs.slides:
+                    if hasattr(s, 'slide_show_transition'):
+                        s.slide_show_transition.transition_type = TRANSITIONS[transition]
+            except Exception:
+                pass
 
         SANDBOX.mkdir(parents=True, exist_ok=True)
         out = (SANDBOX / filename).resolve()

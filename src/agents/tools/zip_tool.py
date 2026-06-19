@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,19 @@ from src.types.agent import ToolDefinition
 SANDBOX = Path("agent_sandbox")
 
 
+def _resolve_source(source: str) -> Path | None:
+    """Find source directory: try as-is, then under OPENCODE_WORKSPACE."""
+    p = Path(source)
+    if p.exists():
+        return p.resolve()
+    workspace = os.environ.get("OPENCODE_WORKSPACE", "")
+    if workspace:
+        wp = (Path(workspace) / source).resolve()
+        if wp.exists():
+            return wp
+    return None
+
+
 async def _zip_dir(args: dict[str, Any], ctx: ToolContext | None) -> str:
     source = args.get("source", "").strip()
     output = args.get("output", "").strip()
@@ -19,9 +33,10 @@ async def _zip_dir(args: dict[str, Any], ctx: ToolContext | None) -> str:
     if not source:
         return "ERROR: 'source' path is required."
 
-    src_path = Path(source).resolve()
-    if not src_path.is_dir():
-        return f"ERROR: Directory not found: {source}"
+    src_path = _resolve_source(source)
+    if src_path is None:
+        ws_hint = os.environ.get("OPENCODE_WORKSPACE", "agent_sandbox/")
+        return f"ERROR: Directory not found: {source}. Try the full path or check in {ws_hint}"
 
     if not output:
         output = src_path.name + ".zip"
