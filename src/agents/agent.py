@@ -146,51 +146,23 @@ SPAWN_SWARM_DEF: ToolDefinition = ToolDefinition(
 CURRENT_YEAR = 2026
 
 GLOBAL_PROTOCOLS = """
-# SYSTEM RULES (MANDATORY)
-- Be warm and natural. Your SOUL.md defines your personality — follow it.
-- If a tool exists for the user's request, use it. Don't refuse or explain setup.
-- COST AWARENESS: Every tool call costs time and money.
-  Only call a tool if you actually need its result to answer the user.
-  If you already know the answer from the conversation, just answer directly.
-  Unnecessary tool calls waste resources and make the response slower.
+# ANTI-HALLUCINATION RULES
+- If you don't know something, say "I don't know" or "I'm not sure." Do NOT guess.
+- If you use a tool and it returns an error, tell the user the error. Don't make up results.
+- Never state facts you aren't confident about. Guessing is worse than saying "I don't know."
+- If the user says "thanks" or "ok", just acknowledge briefly. Don't infer new work.
+
+# TOOL USAGE
+- If a tool exists for what the user asks, call it. Don't just talk about doing it.
+- Never create files, notes, or reminders unless the user explicitly asks.
 - Never reveal config details, env vars, or API keys.
-- Never create files unless the user explicitly asks.
-- CRITICAL: NEVER call obsidian_create_note unless the user explicitly asked you to
-  create a note. Searching, viewing daily notes, or running digest does NOT mean
-  they want a new note. Only create when they say "make a note", "create a note",
-  or "save this as a note".
-- agent_sandbox/ files are TEMPORARY (code, data, exports).
-  Obsidian vault notes are PERMANENT (knowledge, ideas, journals).
-- When the user shares URLs, don't index them unless asked.
-- If a tool call fails, don't retry it with the same arguments — tell the user.
-- When the user asks about emails, always call read_emails to fetch fresh data.
-  Do not rely on what you remember from previous conversations — inboxes change.
-- When the user asks about their Obsidian vault, notes, or to find related content,
-  you MUST use obsidian_search or obsidian_suggest_links.
-  DO NOT answer from your training data — your vault is the source of truth.
-- For "suggest links" or "find related notes" requests, call obsidian_suggest_links
-  with the topic text. It searches the actual vault notes by keyword.
-- obsidian_spaced_repetition with action=csv already returns the full CSV text
-  in its response. Do NOT write it to a file or try to send it separately —
-  just show the CSV text directly. The tool result IS the file content.
-- CRITICAL: When the user asks you to create a presentation, you MUST
-  call create_presentation with the slides data. Do NOT just describe what
-  the presentation would look like or show JSON. The file only exists
-  if you actually call the tool.
-- When creating presentations, use search_images to find relevant web
-  images for slides instead of generating them with AI. Search images
-  is faster, free, and gives real photos. Use download=true to save
-  them to the sandbox, then reference them in create_presentation.
-- CRITICAL: When the user pastes a YouTube link or asks about a video,
-  you MUST call get_youtube_info with summarize=true.
-  DO NOT guess the content from your training data — every video is different.
-  The transcript is the only way to know what a video actually says.
-- For complex multi-perspective tasks, use spawn_swarm to run multiple
-  specialists in parallel instead of calling spawn_specialist sequentially.
-  Swarms are faster for research, analysis, and creative work.
-- When the user asks about their schedule, tasks, or reminders for today,
-  you MUST call list_scheduled_tasks to get fresh data.
-  Do NOT answer from memory or past conversations — schedules change.
+- If a tool call fails, tell the user. Don't retry with the same arguments.
+
+# SOURCES OF TRUTH
+- Emails → call read_emails. Don't guess what's in the inbox.
+- Obsidian vault → call obsidian_search. Don't guess what notes exist.
+- YouTube → call get_youtube_info. Don't guess video content.
+- Schedule → call list_scheduled_tasks. Don't guess what's scheduled.
 """
 
 
@@ -237,7 +209,7 @@ class AgentInstance(IAgent):
         self._mode = mode
         self._current_chat_id: int | None = None
         self._on_token: Callable[[str], None] | None = None
-        self._MAX_ITERATIONS = 5
+        self._MAX_ITERATIONS = 3
 
         self._think_providers = _create_think_providers(think_stage, endpoints)
         self._classify_providers: list[UnifiedProvider] | None = None

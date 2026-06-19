@@ -27,6 +27,7 @@ class UnifiedProviderConfig:
     model: str
     max_retries: int = 2
     timeout: float = 60.0
+    temperature: float = 0.3  # Lower = less creative, less hallucination
 
 
 def _supports_sdk(base_url: str) -> bool:
@@ -70,6 +71,7 @@ class UnifiedProvider:
             stream_coro = self._client_openai.chat.completions.create(
                 model=self.model,
                 messages=[m.to_dict() for m in messages],  # type: ignore[misc]
+                temperature=self._config.temperature,
                 stream=True,
             )
             stream = await stream_coro  # type: ignore[union-attr]
@@ -81,7 +83,12 @@ class UnifiedProvider:
         else:
             # Fetch path: stream via httpx SSE
             base = self._config.base_url.rstrip("/")
-            body = {"model": self.model, "messages": [m.to_dict() for m in messages], "stream": True}
+            body = {
+                "model": self.model,
+                "messages": [m.to_dict() for m in messages],
+                "temperature": self._config.temperature,
+                "stream": True,
+            }
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self._config.api_key}",
@@ -120,6 +127,7 @@ class UnifiedProvider:
         response = await self._client_openai.chat.completions.create(
             model=self.model,
             messages=[m.to_dict() for m in messages],  # type: ignore[misc]
+            temperature=self._config.temperature,
         )
         choice = response.choices[0]
         message = choice.message
@@ -154,6 +162,7 @@ class UnifiedProvider:
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": [m.to_dict() for m in messages],  # type: ignore[misc]
+            "temperature": self._config.temperature,
         }
         if tools:
             kwargs["tools"] = [t.to_dict() for t in tools]
@@ -195,6 +204,7 @@ class UnifiedProvider:
         body: dict[str, Any] = {
             "model": self.model,
             "messages": [m.to_dict() for m in messages],
+            "temperature": self._config.temperature,
         }
         if tools:
             body["tools"] = [t.to_dict() for t in tools]
