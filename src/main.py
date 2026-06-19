@@ -415,7 +415,7 @@ class KinetiCBot:
             attachment = msg.effective_attachment
             if isinstance(attachment, (Document, PhotoSize)):
                 file = await attachment.get_file()
-            elif isinstance(attachment, list) and attachment:
+            elif isinstance(attachment, (list, tuple)) and attachment:
                 file = await attachment[-1].get_file()
             else:
                 await msg.reply_text("Unsupported attachment type.")
