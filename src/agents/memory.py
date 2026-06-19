@@ -201,13 +201,17 @@ def build_compression_prompt(messages: list[ChatMessage]) -> str:
         f"{'Human' if m.role == 'user' else 'Assistant' if m.role == 'assistant' else m.role}: {m.content[:300]}"
         for m in messages
     )
-    return f"""Summarize the following conversation history into a concise paragraph. Focus on:
-- Key decisions made
-- Information the user has shared about themselves
-- Ongoing tasks or projects
-- Important context for continuing the conversation
+    return f"""Summarize this conversation.
+CRITICAL: preserve time of day (morning/afternoon/evening) and what was just discussed.
 
-Keep it under 200 words. Write in third person ("The user... The assistant...").
+Include:
+- Current time of day / period (morning, afternoon, evening — if mentioned)
+- Key decisions and information shared
+- What was being worked on or discussed
+- The assistant's last response
+- Any ongoing tasks or projects
+
+Keep it under 200 words. Write in third person.
 
 {conversation}"""
 

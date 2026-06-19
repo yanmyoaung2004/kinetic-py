@@ -8,12 +8,12 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-
-logger = logging.getLogger("kinetic.opencode")
 from typing import Any
 
 from src.agents.tools.registry import ToolContext, ToolHandler
 from src.types.agent import ToolDefinition
+
+logger = logging.getLogger("kinetic.opencode")
 
 
 async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:

@@ -101,7 +101,10 @@ def create_git_tool() -> ToolHandler:
                     "properties": {
                         "action": {
                             "type": "string",
-                            "description": "Operation: init, status, add, commit, push, pull, clone, log, remote, create_repo",
+                            "description": (
+                                "Operation: init, status, add, commit,"
+                                " push, pull, clone, log, remote, create_repo"
+                            ),
                         },
                         "path": {"type": "string", "description": "Repository path (default: current dir)"},
                         "message": {"type": "string", "description": "Commit message"},

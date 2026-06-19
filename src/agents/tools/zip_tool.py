@@ -74,7 +74,10 @@ def create_zip_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "zip_project",
-                "description": "Zip a directory into a .zip file saved to agent_sandbox/. Use after OpenCode creates a project.",
+                "description": (
+                    "Zip a directory into a .zip file in agent_sandbox/."
+                    " Use after OpenCode creates a project."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {

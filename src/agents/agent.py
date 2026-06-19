@@ -536,8 +536,8 @@ class AgentInstance(IAgent):
                     await self._compress_history()
                 except Exception:
                     pass
-            # SOUL evolution every 15 user messages
-            if msg_count > 0 and msg_count % 15 == 0:
+            # SOUL evolution every 50 user messages (was 15 — too frequent)
+            if msg_count > 0 and msg_count % 50 == 0:
                 try:
                     await self._evolve_soul()
                 except Exception:
@@ -985,15 +985,27 @@ Conversation:
                 self.id,
                 emb,
                 message,
-                SearchOptions(top_k=3, metadata_filter={"type": "memory"}),
+                SearchOptions(top_k=1, metadata_filter={"type": "memory"}),
             )
             if not results:
                 return ""
+            # Only include if similarity is decent (> 0.3) and from last 24h
+            from datetime import datetime as _dt
+            now = _dt.now()
             parts = []
             for r in results:
+                if r.score < 0.3:
+                    continue
                 ts = r.chunk.metadata.get("timestamp", "")
+                if ts:
+                    try:
+                        mem_time = _dt.fromisoformat(ts)
+                        if (now - mem_time).total_seconds() > 86400:
+                            continue
+                    except Exception:
+                        pass
                 prefix = f"[{ts[:10]}]" if ts else ""
-                parts.append(f"{prefix} {r.chunk.text[:300]}")
+                parts.append(f"{prefix} {r.chunk.text[:200]}")
             return "\n\n".join(parts)
         except Exception as exc:
             logger.warning("[MEMORY] Recall failed: %s", exc)
@@ -1099,12 +1111,27 @@ Conversation:
             if not soul_path.exists():
                 return
 
-            # Backup current SOUL
-            backup = soul_path.read_text("utf-8")
-            (Path("config") / self.id / "SOUL.md.bak").write_text(backup, encoding="utf-8")
+            # Read current SOUL
+            current = soul_path.read_text("utf-8")
 
-            # Append evolution suggestions
-            with soul_path.open("a", encoding="utf-8") as f:
+            # Only append if suggestions are non-trivial
+            if len(response.content.strip()) < 50:
+                logger.info("[SOUL] Skipped — suggestions too short")
+                return
+
+            # Backup
+            (Path("config") / self.id / "SOUL.md.bak").write_text(current, encoding="utf-8")
+
+            # Keep only last 3 auto-evolution sections (remove old ones)
+            import re as _re
+            sections = _re.split(r"\n## Auto-Evolution \(", current)
+            if len(sections) > 4:
+                sections = sections[:1] + sections[-(3):]
+                current = "## Auto-Evolution (".join(sections)
+
+            # Append
+            with soul_path.open("w", encoding="utf-8") as f:
+                f.write(current)
                 f.write(f"\n\n## Auto-Evolution ({__import__('datetime').datetime.now().strftime('%Y-%m-%d')})\n")
                 f.write(f"{response.content}\n")
 
