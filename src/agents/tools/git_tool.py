@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -93,7 +92,10 @@ def create_git_tool() -> ToolHandler:
         definition=ToolDefinition(
             function={
                 "name": "git",
-                "description": "Run git operations: init, status, add, commit, push, pull, clone, log, remote, create_repo (via gh CLI).",
+                "description": (
+                    "Run git: init, status, add, commit, push, pull,"
+                    " clone, log, remote, create_repo (via gh CLI)."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {

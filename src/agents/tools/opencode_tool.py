@@ -16,8 +16,6 @@ from src.agents.tools.registry import ToolContext, ToolHandler
 from src.types.agent import ToolDefinition
 
 
-
-
 async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
     task = args.get("task", "").strip()
     if not task:
@@ -149,7 +147,7 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
     if final_text:
         summary_parts.append(f"\nOpenCode says:\n{final_text[:1000].strip()}")
     else:
-        summary_parts.append(f"\n(No response from OpenCode — model may not support the task)")
+        summary_parts.append("\n(No response from OpenCode — model may not support the task)")
 
     # Store
     _pending_opencode[task] = {

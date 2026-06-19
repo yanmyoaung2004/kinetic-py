@@ -38,6 +38,7 @@ from src.agents.tools.file_tools import (
     create_undo_file_tool,
     create_write_file_tool,
 )
+from src.agents.tools.git_tool import create_git_tool
 from src.agents.tools.image_search import create_image_search_tool
 from src.agents.tools.image_tool import create_generate_image_tool
 from src.agents.tools.knowledge_tool import (
@@ -83,10 +84,9 @@ from src.agents.tools.system_tools import (
     create_get_system_info_tool,
     create_read_env_var_tool,
 )
-from src.agents.tools.zip_tool import create_zip_tool, create_unzip_tool
-from src.agents.tools.git_tool import create_git_tool
 from src.agents.tools.weather_tool import create_weather_tool
 from src.agents.tools.youtube_tool import create_youtube_info_tool
+from src.agents.tools.zip_tool import create_unzip_tool, create_zip_tool
 from src.providers.provider import UnifiedProvider, UnifiedProviderConfig, call_with_fallback
 from src.types.agent import AgentCard, IAgent, ToolDefinition
 from src.types.llm import ChatMessage
@@ -235,8 +235,6 @@ class AgentInstance(IAgent):
         self._dispatcher = dispatcher
         self._mode = mode
         self._current_chat_id: int | None = None
-        self._pending_coding_task: Any = None
-        self._pending_opencode_task: Any = None
         self._MAX_ITERATIONS = 5
 
         self._think_providers = _create_think_providers(think_stage, endpoints)
@@ -449,36 +447,6 @@ class AgentInstance(IAgent):
             if briefing and not briefing.startswith("ERROR"):
                 return briefing
 
-        # Pre-process: route coding requests
-        # If user says "opencode" → use OpenCode (project-level)
-        # Otherwise → use coding-assistant (quick scripts in Docker)
-        if current_depth == 0:
-            import re as _re
-            lowered = message.lower()
-            words = set(_re.findall(r"[a-z]+", lowered))
-            is_coding = bool(words & {"write", "create", "implement", "build", "make",
-                                       "function", "script", "code", "program", "class",
-                                       "module", "test", "api", "endpoint", "route",
-                                       "auth", "authentication", "middleware", "service",
-                                       "python", "javascript", "typescript", "bash", "shell"})
-            wants_opencode = "opencode" in lowered or "open code" in lowered
-
-            if is_coding and wants_opencode:
-                from src.agents.tools.opencode_tool import _call_opencode
-                logger.info("[AUTO_OPENCODE] Starting OpenCode in background...")
-
-                # Store OpenCode as pending background task
-                self._pending_opencode_task = asyncio.create_task(
-                    self._run_opencode(message)
-                )
-
-                return "Let me have OpenCode handle this... You can keep chatting while it works!"
-
-            if is_coding and not wants_opencode:
-                logger.info("[AUTO_DELEGATE] Routing to coding-assistant...")
-                code_result = await self._auto_delegate_coding(message)
-                if code_result:
-                    return code_result
 
         # Stage 1: Classify (multi mode)
         if self._mode == "multi" and self._classify_providers:
@@ -743,22 +711,6 @@ class AgentInstance(IAgent):
         except Exception as e:
             logger.warning("[AUTO_DELEGATE] Failed: %s", e)
             return None
-
-    async def _run_opencode(self, message: str) -> str:
-        """Run OpenCode in background and store result."""
-        from src.agents.tools.opencode_tool import _call_opencode
-        # Strip "opencode" prefix from task so OpenCode isn't confused
-        import re as _re
-        clean = _re.sub(r"^\s*(opencode|open\s+code)\s*", "", message, flags=_re.IGNORECASE).strip()
-        try:
-            result = await _call_opencode({"task": clean}, ToolContext(chat_id=self._current_chat_id))
-            if result:
-                self._memory.append(ChatMessage(role="system", content="[opencode handled this task]"))
-            return result or "OpenCode returned no result."
-        except Exception as e:
-            err = f"OpenCode failed: {e}"
-            logger.warning(err)
-            return err
 
     async def _run_think_loop(self, current_depth: int) -> str:
         tools = self._tools.get_definitions()

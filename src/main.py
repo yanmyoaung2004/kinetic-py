@@ -380,25 +380,6 @@ class KinetiCBot:
             safe = _convert_markdown(response or "(no response)")
             await _send_long_message(msg, safe)
             await self._send_pending_files(chat_id, update)
-
-            # Check if agent has pending background tasks (for follow-up results)
-            main_agent = self.dispatcher._active_agents.get(self._agent_target)
-            if main_agent:
-                for pending_attr, label in [
-                    ("_pending_coding_task", "From coding-assistant:"),
-                    ("_pending_opencode_task", "From OpenCode:"),
-                ]:
-                    pending_task = getattr(main_agent, pending_attr, None)
-                    if pending_task and not pending_task.done() and pending_task is not asyncio.current_task():
-                        setattr(main_agent, pending_attr, None)
-                        new_typing = asyncio.create_task(_typing_indicator(msg.chat, pending_task))
-                        result = await pending_task
-                        new_typing.cancel()
-                        if result:
-                            safe = _convert_markdown(result)
-                            if safe:
-                                await _send_long_message(msg, f"<b>{label}</b>\n{safe}")
-                                await self._send_pending_files(chat_id, update)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
         finally:
