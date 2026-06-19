@@ -183,8 +183,9 @@ class KinetiCBot:
         self.dispatcher.load_and_register_agent(AGENTS_CONFIG)
         self._agent_target = AGENT_TARGET
         self._start_time = __import__("time").time()
-        self._last_user_message: float = __import__("time").time()
-        self._user_chat_id: int | None = None
+        # Multi-user tracking
+        self._user_last_active: dict[int, float] = {}
+        self._known_users: set[int] = set()
         # Load persisted scheduler state
         self._meta_path = Path("agents_workspace") / "_scheduler_meta.json"
         self._meta_path.parent.mkdir(parents=True, exist_ok=True)
@@ -195,6 +196,7 @@ class KinetiCBot:
                 meta = json.loads(self._meta_path.read_text("utf-8"))
                 self._last_briefing_date = meta.get("briefing_date", "")
                 self._warned = set(meta.get("warned", []))
+                self._known_users = set(meta.get("known_users", []))
             except Exception:
                 pass
 
@@ -404,8 +406,9 @@ class KinetiCBot:
             return
         chat_id = msg.chat_id
         user_id = update.effective_user.id if update.effective_user else 0
-        self._last_user_message = __import__("time").time()
-        self._user_chat_id = chat_id or self._user_chat_id
+        if chat_id:
+            self._user_last_active[chat_id] = __import__("time").time()
+            self._known_users.add(chat_id)
 
         # Authorization
         if ALLOWLIST and user_id not in ALLOWLIST:
@@ -478,8 +481,9 @@ class KinetiCBot:
             return
         chat_id = msg.chat_id
         caption = (msg.caption or "").strip()
-        self._last_user_message = __import__("time").time()
-        self._user_chat_id = chat_id or self._user_chat_id
+        if chat_id:
+            self._user_last_active[chat_id] = __import__("time").time()
+            self._known_users.add(chat_id)
 
         assert msg.chat is not None
 
@@ -545,8 +549,9 @@ class KinetiCBot:
         if msg is None or not msg.voice:
             return
         chat_id = msg.chat_id
-        self._last_user_message = __import__("time").time()
-        self._user_chat_id = chat_id or self._user_chat_id
+        if chat_id:
+            self._user_last_active[chat_id] = __import__("time").time()
+            self._known_users.add(chat_id)
 
         assert msg.chat is not None
         await msg.chat.send_action("typing")
@@ -704,37 +709,32 @@ class KinetiCBot:
                 all_ids = {item["task"]["id"] for item in overdue + upcoming}
                 _warned &= all_ids
 
-                # ── 3. Morning briefing (7 AM, once per day) ──
+                # ── 3. Morning briefing (7 AM, once per day) — send to ALL known users ──
                 today_str = now.strftime("%Y-%m-%d")
                 if now.hour == 7 and now.minute < 2 and self._last_briefing_date != today_str:
                     self._last_briefing_date = today_str
-                    if self._app:
+                    if self._app and self._known_users:
                         from src.agents.tools.briefing_tool import _daily_briefing
                         from src.agents.tools.registry import ToolContext
                         briefing = await _daily_briefing({}, ToolContext())
                         if briefing and not briefing.startswith("ERROR"):
                             safe = _convert_markdown(f"☀️ Good morning! Here's your briefing.\n\n{briefing}")
-                            # Send to all chats that have tasks
-                            sent_to: set[int] = set()
-                            for item in overdue + upcoming:
-                                cid = item["task"].get("chat_id")
-                                if cid and cid not in sent_to:
-                                    sent_to.add(cid)
+                            for cid in self._known_users:
+                                try:
                                     await self._app.bot.send_message(chat_id=cid, text=safe, parse_mode="HTML")
-                            if not sent_to:
-                                logger.info("[SCHEDULER] Morning briefing ready but no chat_id to send to")
+                                except Exception:
+                                    pass
 
-                # ── 4. Idle check-in (3+ hours) ──
-                idle_hours = (__import__("time").time() - self._last_user_message) / 3600
-                if idle_hours > 3 and self._app and now.hour < 22:
-                    self._last_user_message = __import__("time").time()
-                    check_in = "Hey, been a while. Just checking in — anything on your mind?"
-                    if self._user_chat_id:
+                # ── 4. Idle check-in (3+ hours) — per user ──
+                now_ts = __import__("time").time()
+                for cid in list(self._known_users):
+                    last_active = self._user_last_active.get(cid, now_ts)
+                    idle_hours = (now_ts - last_active) / 3600
+                    if idle_hours > 3 and self._app and now.hour < 22:
+                        self._user_last_active[cid] = now_ts  # Reset to avoid spam
+                        check_in = "Hey, been a while. Just checking in — anything on your mind?"
                         try:
-                            await self._app.bot.send_message(
-                                chat_id=self._user_chat_id,
-                                text=check_in,
-                            )
+                            await self._app.bot.send_message(chat_id=cid, text=check_in)
                         except Exception:
                             pass
                 # Cleanup: remove warned ids for tasks that no longer exist
@@ -746,6 +746,7 @@ class KinetiCBot:
                     self._meta_path.write_text(json.dumps({
                         "briefing_date": self._last_briefing_date,
                         "warned": list(_warned),
+                        "known_users": list(self._known_users),
                     }))
                 except Exception:
                     pass
