@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 from src.agents.agent import AgentInstance
@@ -124,11 +125,12 @@ class KinetiCDispatcher:
         message: str,
         current_depth: int = 0,
         chat_id: int | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> str:
         self._clear_agent_timeout(target_id)
         try:
             agent = await self._get_or_initialize_agent(target_id)
-            return await agent.process(message, current_depth, chat_id)
+            return await agent.process(message, current_depth, chat_id, on_token)
         finally:
             self._schedule_eviction(target_id)
 

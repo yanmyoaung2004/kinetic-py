@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -22,7 +23,8 @@ class IAgent(Protocol):
     id: str
     config: AgentCard
 
-    async def process(self, message: str, current_depth: int = 0, chat_id: int | None = None) -> str: ...
+    async def process(self, message: str, current_depth: int = 0, chat_id: int | None = None,
+                      on_token: Callable[[str], None] | None = None) -> str: ...
 
     def dispose(self) -> None: ...
 

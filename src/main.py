@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import signal
@@ -69,6 +70,7 @@ COMMANDS_HELP = """
 /knowledge — Show knowledge base stats
 /knowledge list — List indexed documents
 /knowledge remove <id> — Remove a document from the index
+/search <query> — Search conversation history
 """
 
 
@@ -182,8 +184,19 @@ class KinetiCBot:
         self._agent_target = AGENT_TARGET
         self._start_time = __import__("time").time()
         self._last_user_message: float = __import__("time").time()
-        self._last_briefing_date: str = ""
         self._user_chat_id: int | None = None
+        # Load persisted scheduler state
+        self._meta_path = Path("agents_workspace") / "_scheduler_meta.json"
+        self._meta_path.parent.mkdir(parents=True, exist_ok=True)
+        self._last_briefing_date = ""
+        self._warned: set[str] = set()
+        if self._meta_path.exists():
+            try:
+                meta = json.loads(self._meta_path.read_text("utf-8"))
+                self._last_briefing_date = meta.get("briefing_date", "")
+                self._warned = set(meta.get("warned", []))
+            except Exception:
+                pass
 
     async def handle_command(self, update: Update, context: Any = None) -> None:
         msg = update.message
@@ -356,6 +369,35 @@ class KinetiCBot:
             )
             return
 
+        if cmd == "/search" and len(parts) >= 2:
+            query = " ".join(parts[1:]).lower()
+            history_path = Path("agents_workspace") / self._agent_target / "history.jsonl"
+            if not history_path.exists():
+                await msg.reply_text("No conversation history found.")
+                return
+            matches = []
+            try:
+                for line in history_path.read_text("utf-8", errors="replace").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        if query in entry.get("content", "").lower():
+                            role = entry.get("role", "?")
+                            content = entry.get("content", "")[:200]
+                            matches.append(f"[{role}] {content}")
+                    except json.JSONDecodeError:
+                        continue
+                    if len(matches) >= 10:
+                        break
+            except Exception:
+                pass
+            if not matches:
+                await msg.reply_text(f"No matches for '{query}'.")
+            else:
+                await msg.reply_text(f"Search results for '{query}':\n\n" + "\n---\n".join(matches))
+            return
+
     async def handle_message(self, update: Update, context: Any = None) -> None:
         msg = update.message
         if msg is None or not msg.text:
@@ -378,10 +420,35 @@ class KinetiCBot:
             return
 
         assert msg.chat is not None
-        task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, text, 0, chat_id))
+
+        # Streamed message: send initial placeholder, update as tokens arrive
+        stream_msg = await msg.reply_text("...", parse_mode="HTML")
+        accumulated = ""
+        last_edit = 0.0
+
+        def on_token(token: str) -> None:
+            nonlocal accumulated, last_edit
+            accumulated += token
+            now_t = __import__("time").time()
+            # Throttle edits to once per 0.8 seconds
+            if now_t - last_edit > 0.8:
+                last_edit = now_t
+                safe_part = _convert_markdown(accumulated)
+                # Don't edit if too long (Telegram has 4096 limit for edits too)
+                if len(safe_part) < 3500:
+                    try:
+                        asyncio.create_task(stream_msg.edit_text(safe_part, parse_mode="HTML"))
+                    except Exception:
+                        pass
+
+        task = asyncio.create_task(
+            self.dispatcher.dispatch(self._agent_target, text, 0, chat_id, on_token)
+        )
         typing = asyncio.create_task(_typing_indicator(msg.chat, task))
         try:
             response = await task
+            # Send the final complete response
+            await stream_msg.delete()
             safe = _convert_markdown(response or "(no response)")
             await _send_long_message(msg, safe)
             await self._send_pending_files(chat_id, update)
@@ -537,6 +604,7 @@ class KinetiCBot:
                             "session",
                             "task",
                             "knowledge",
+                            "search",
                         ],
                         self.handle_command,
                     )
@@ -669,6 +737,18 @@ class KinetiCBot:
                             )
                         except Exception:
                             pass
+                # Cleanup: remove warned ids for tasks that no longer exist
+                all_ids = {item["task"]["id"] for item in overdue + upcoming}
+                _warned &= all_ids
+
+                # Persist scheduler meta every cycle
+                try:
+                    self._meta_path.write_text(json.dumps({
+                        "briefing_date": self._last_briefing_date,
+                        "warned": list(_warned),
+                    }))
+                except Exception:
+                    pass
             except Exception:
                 pass
             await asyncio.sleep(10)

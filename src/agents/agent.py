@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -235,6 +236,7 @@ class AgentInstance(IAgent):
         self._dispatcher = dispatcher
         self._mode = mode
         self._current_chat_id: int | None = None
+        self._on_token: Callable[[str], None] | None = None
         self._MAX_ITERATIONS = 5
 
         self._think_providers = _create_think_providers(think_stage, endpoints)
@@ -421,13 +423,17 @@ class AgentInstance(IAgent):
         if self.config.type == "ephemeral":
             self._memory.destroy()
 
-    async def process(self, message: str, current_depth: int = 0, chat_id: int | None = None) -> str:
+    async def process(
+        self, message: str, current_depth: int = 0, chat_id: int | None = None,
+        on_token: Callable[[str], None] | None = None,
+    ) -> str:
         max_depth = 3
         if current_depth > max_depth:
             return "ERROR: Maximum delegation depth reached. Task aborted."
 
         if chat_id is not None:
             self._current_chat_id = chat_id
+        self._on_token = on_token
         self._memory.append(ChatMessage(role="user", content=message))
 
 
@@ -470,7 +476,7 @@ class AgentInstance(IAgent):
         recall = await self._recall_memories(message)
 
         # Stage 2: Think loop
-        response = await self._run_think_loop(current_depth, recall=recall)
+        response = await self._run_think_loop(current_depth, recall=recall, on_token=on_token)
 
         # Stage 3: Polish (multi mode)
         if self._mode == "multi" and self._answer_providers and response:
@@ -533,7 +539,10 @@ class AgentInstance(IAgent):
 
         return response
 
-    async def _run_think_loop(self, current_depth: int, recall: str = "") -> str:
+    async def _run_think_loop(
+        self, current_depth: int, recall: str = "",
+        on_token: Callable[[str], None] | None = None,
+    ) -> str:
         tools = self._tools.get_definitions()
 
         # Build context block (not persisted to memory)
@@ -552,10 +561,24 @@ class AgentInstance(IAgent):
             msgs.append(ChatMessage(role="system", content="\n".join(context_parts)))
 
             try:
-                response = await call_with_fallback(
-                    self._think_providers,
-                    lambda p: p.generate_with_tools(msgs, available_tools),
-                )
+                # Use streaming on the final text-only iteration
+                if on_token and is_last and not available_tools:
+                    try:
+                        response = await call_with_fallback(
+                            self._think_providers,
+                            lambda p: p.generate_stream(msgs, on_token),
+                        )
+                    except Exception:
+                        # Stream failed — fall back to normal generation
+                        response = await call_with_fallback(
+                            self._think_providers,
+                            lambda p: p.generate_with_tools(msgs, available_tools),
+                        )
+                else:
+                    response = await call_with_fallback(
+                        self._think_providers,
+                        lambda p: p.generate_with_tools(msgs, available_tools),
+                    )
                 # Some models return raw JSON args as content instead of tool_calls
                 if not response.tool_calls and response.content and response.content.strip().startswith("{"):
                     try:

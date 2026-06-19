@@ -59,6 +59,53 @@ class UnifiedProvider:
             return await self._sdk_generate(messages)
         return await self._fetch_generate(messages)
 
+    async def generate_stream(
+        self, messages: list[ChatMessage], on_token: Callable[[str], Any],
+    ) -> LLMResponse:
+        """Stream tokens via on_token callback, returns final response."""
+        full_content = ""
+        tool_calls: list[dict[str, Any]] | None = None
+
+        if self._use_sdk and self._client_openai:
+            stream_coro = self._client_openai.chat.completions.create(
+                model=self.model,
+                messages=[m.to_dict() for m in messages],  # type: ignore[misc]
+                stream=True,
+            )
+            stream = await stream_coro  # type: ignore[union-attr]
+            async for chunk in stream:  # type: ignore[union-attr]
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if delta and delta.content:
+                    full_content += delta.content
+                    on_token(delta.content)
+        else:
+            # Fetch path: stream via httpx SSE
+            base = self._config.base_url.rstrip("/")
+            body = {"model": self.model, "messages": [m.to_dict() for m in messages], "stream": True}
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self._config.api_key}",
+            }
+            assert self._client_http is not None
+            async with self._client_http.stream(
+                "POST", f"{base}/chat/completions", json=body, headers=headers,
+            ) as resp:
+                async for line in resp.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:].strip()
+                        if data_str and data_str != "[DONE]":
+                            try:
+                                data = json.loads(data_str)
+                                choice = data.get("choices", [{}])[0]
+                                delta = choice.get("delta", {})
+                                if delta.get("content"):
+                                    full_content += delta["content"]
+                                    on_token(delta["content"])
+                            except json.JSONDecodeError:
+                                pass
+
+        return LLMResponse(content=full_content or None, tool_calls=tool_calls, role="assistant")
+
     async def generate_with_tools(
         self,
         messages: list[ChatMessage],
