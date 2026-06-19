@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Protocol
 
 
@@ -11,6 +12,11 @@ class ChatMessage:
     name: str | None = None
     tool_call_id: str | None = None
     tool_calls: list[dict[str, Any]] | None = None
+    timestamp: str = ""  # ISO format, auto-set on creation
+
+    def __post_init__(self) -> None:
+        if not self.timestamp:
+            self.timestamp = datetime.now().isoformat()
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"role": self.role, "content": self.content}
@@ -30,6 +36,7 @@ class ChatMessage:
             name=d.get("name"),
             tool_call_id=d.get("tool_call_id"),
             tool_calls=d.get("tool_calls"),
+            timestamp=d.get("timestamp", ""),
         )
 
 

@@ -260,7 +260,7 @@ class AgentInstance(IAgent):
         elif self._memory.refresh_system_prompt(soul):
             logger.info("[SYSTEM] Refreshed stale system prompt for %s", self.id)
 
-        # Inject user profile (filtered — no raw emails, phones, or transient message noise)
+        # Inject user profile (filtered — only permanent facts)
         profile = self._memory.read_profile()
         if profile and (profile.known_facts or profile.preferences):
             import re as _re
@@ -274,11 +274,27 @@ class AgentInstance(IAgent):
             filtered = []
             for f in profile.known_facts:
                 lower = f.lower()
-                # Skip transient email content — always fetch fresh
+                # Skip email/notification content — always fetch fresh
                 if any(kw in lower for kw in ("email", "sent you", "received", "inbox", "gmail", "outlook", "kimi")):
                     continue
-                # Skip lines with URLs, phone numbers, raw email addresses
+                # Skip URLs, phone numbers, emails
                 if any(p.search(f) for p in _sensitive_patterns):
+                    continue
+                # Skip temporary/transient facts
+                if any(kw in lower for kw in (
+                    "reminder", "alarm", "canceled", "cancelled",
+                    "having dinner", "having lunch", "eating", "going out", "back home",
+                    "good night", "good morning", "water reminder", "hydration",
+                    "currently", "just now", "right now", "tonight", "today's class",
+                    "scheduled", "rescheduled", "postponed", "delay",
+                    "5-minute", "10-second", "in 5 minutes", "in 10 minutes",
+                    "nickname", "called as", "addressed as", "pinch", "boss",
+                    "does not want", "don't want", "no alarm", "no reminder",
+                    "sleep now", "going to sleep", "headed to bed",
+                )):
+                    continue
+                # Skip preference about assistant's name or tone
+                if any(kw in lower for kw in ("assistant should be", "assistant called", "call me", "address me as")):
                     continue
                 filtered.append(f)
 
@@ -368,8 +384,8 @@ class AgentInstance(IAgent):
         self._register_tool(create_zip_tool())
         self._register_tool(create_unzip_tool())
         self._register_tool(create_git_tool())
-        # OpenCode tools only for main agent
-        if agent_id == "main":
+        # OpenCode tools for main + coding-assistant
+        if agent_id in ("main", "coding-assistant"):
             self._register_tool(create_call_opencode_tool())
             self._register_tool(create_apply_opencode_tool())
         self._register_tool(create_weather_tool())
@@ -468,9 +484,14 @@ class AgentInstance(IAgent):
                 cls = (classification.content or "").strip().lower()
                 logger.info("[CLASSIFY] %s -> %s", self.id, cls)
                 if cls == "chitchat":
+                    from datetime import datetime as _dt2
+                    now2 = _dt2.now().strftime("%A %Y-%m-%d %H:%M (%I:%M %p)")
+                    chat_msgs = list(self._memory.get_messages()) + [
+                        ChatMessage(role="system", content=f"[Current time: {now2}]")
+                    ]
                     chat_response = await call_with_fallback(
                         self._think_providers,
-                        lambda p: p.generate(self._memory.get_messages()),
+                        lambda p: p.generate(chat_msgs),
                     )
                     response = chat_response.content or ""
                     self._memory.append(ChatMessage(role="assistant", content=response))
@@ -478,13 +499,11 @@ class AgentInstance(IAgent):
             except Exception:
                 pass
 
-        # Stage 1.5: Recall relevant past memories
+        # Stage 1.5: Recall relevant past memories (injected into think loop, not persisted)
         recall = await self._recall_memories(message)
-        if recall:
-            self._memory.append(ChatMessage(role="system", content=f"[CONTEXT FROM PAST CONVERSATIONS]\n{recall}"))
 
         # Stage 2: Think loop
-        response = await self._run_think_loop(current_depth)
+        response = await self._run_think_loop(current_depth, recall=recall)
 
         # Stage 3: Polish (multi mode)
         if self._mode == "multi" and self._answer_providers and response:
@@ -712,17 +731,28 @@ class AgentInstance(IAgent):
             logger.warning("[AUTO_DELEGATE] Failed: %s", e)
             return None
 
-    async def _run_think_loop(self, current_depth: int) -> str:
+    async def _run_think_loop(self, current_depth: int, recall: str = "") -> str:
         tools = self._tools.get_definitions()
+
+        # Build context block (not persisted to memory)
+        from datetime import datetime as _dt
+        now = _dt.now().strftime("%A %Y-%m-%d %H:%M (%I:%M %p)")
+        context_parts = [f"[Current time: {now}]"]
+        if recall:
+            context_parts.append(f"[CONTEXT FROM PAST CONVERSATIONS]\n{recall}")
 
         for iteration in range(self._MAX_ITERATIONS):
             is_last = iteration == self._MAX_ITERATIONS - 1
             available_tools = [] if is_last else tools
 
+            # Inject context before each LLM call without persisting
+            msgs = list(self._memory.get_messages())
+            msgs.append(ChatMessage(role="system", content="\n".join(context_parts)))
+
             try:
                 response = await call_with_fallback(
                     self._think_providers,
-                    lambda p: p.generate_with_tools(self._memory.get_messages(), available_tools),
+                    lambda p: p.generate_with_tools(msgs, available_tools),
                 )
                 # Some models return raw JSON args as content instead of tool_calls
                 if not response.tool_calls and response.content and response.content.strip().startswith("{"):
@@ -746,7 +776,7 @@ class AgentInstance(IAgent):
                     try:
                         response = await call_with_fallback(
                             self._think_providers,
-                            lambda p: p.generate(self._memory.get_messages()),
+                            lambda p: p.generate(msgs),
                         )
                     except Exception:
                         return (
@@ -794,6 +824,10 @@ class AgentInstance(IAgent):
 
                     # Dedup: skip if same tool + same args already called this iteration
                     # obsidian_create_note: only ONCE per iteration regardless of args
+                    # If opencode was called, skip apply_opencode in same iteration
+                    if fn_name == "apply_opencode" and any(k == "call_opencode" for k, _ in seen_args):
+                        logger.info("[TOOL] Skipping apply_opencode — call_opencode just started")
+                        continue
                     if fn_name == "obsidian_create_note" and any(k == "obsidian_create_note" for k, _ in seen_args):
                         logger.info("[TOOL] Skipping extra obsidian_create_note (only one per iteration)")
                         continue
@@ -822,6 +856,9 @@ class AgentInstance(IAgent):
                         ctx = ToolContext(depth=current_depth, chat_id=self._current_chat_id)
                         result = await self._tools.execute(fn_name, fn_args, ctx)
                         self._memory.append(ChatMessage(role="tool", tool_call_id=call.get("id", ""), content=result))
+                        # If opencode was called, stop — it runs async, no need to continue
+                        if fn_name == "call_opencode":
+                            return "OpenCode is handling this in the background. You can keep chatting!"
                 continue
 
             if response.content:
@@ -845,12 +882,19 @@ class AgentInstance(IAgent):
 
         conversation = "\n".join(f"{'User' if m.role == 'user' else 'Assistant'}: {m.content[:500]}" for m in recent)
 
-        prompt = f"""Extract personal facts about the user from this conversation. Return ONLY valid JSON with:
+        prompt = f"""Extract PERMANENT personal facts about the user. Return ONLY valid JSON:
 {{
   "new_facts": ["fact 1", "fact 2"],
   "new_preferences": ["pref 1"]
 }}
-Only include confirmed information. Skip greetings and small talk.
+
+RULES:
+- Only include PERMANENT facts (name, job, skills, location, long-term goals)
+- NEVER include temporary state (what they're currently doing, eating, planning tonight)
+- NEVER include one-time events (reminders, alarms, cancellations)
+- NEVER include preferences about the assistant's name/tone/style
+- Skip greetings, small talk, and scheduling
+- If a fact is already in "Previous known facts", don't repeat it
 
 Previous known facts: {json.dumps(existing.known_facts if existing else [])}
 
@@ -985,27 +1029,17 @@ Conversation:
                 self.id,
                 emb,
                 message,
-                SearchOptions(top_k=1, metadata_filter={"type": "memory"}),
+                SearchOptions(top_k=3, metadata_filter={"type": "memory"}),
             )
             if not results:
                 return ""
-            # Only include if similarity is decent (> 0.3) and from last 24h
-            from datetime import datetime as _dt
-            now = _dt.now()
             parts = []
             for r in results:
-                if r.score < 0.3:
+                if r.score < 0.2:
                     continue
                 ts = r.chunk.metadata.get("timestamp", "")
-                if ts:
-                    try:
-                        mem_time = _dt.fromisoformat(ts)
-                        if (now - mem_time).total_seconds() > 86400:
-                            continue
-                    except Exception:
-                        pass
-                prefix = f"[{ts[:10]}]" if ts else ""
-                parts.append(f"{prefix} {r.chunk.text[:200]}")
+                time_label = ts[:16] if ts else "unknown time"
+                parts.append(f"[{time_label}] {r.chunk.text[:200]}")
             return "\n\n".join(parts)
         except Exception as exc:
             logger.warning("[MEMORY] Recall failed: %s", exc)

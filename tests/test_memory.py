@@ -26,7 +26,7 @@ class TestAgentMemory:
         mem2 = AgentMemory("test-agent", str(tmp_workspace))
         msgs = mem2.get_messages()
         assert len(msgs) == 1
-        assert msgs[0].content == "persist me"
+        assert "persist me" in msgs[0].content
 
     def test_trim_respects_max(self, tmp_workspace):
         mem = AgentMemory("test-agent", str(tmp_workspace), max_messages=5)

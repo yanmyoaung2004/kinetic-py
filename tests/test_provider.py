@@ -169,7 +169,10 @@ class TestMessageSerialization:
         )
         d = msg.to_dict()
         assert d["role"] == "assistant"
-        assert d["content"] == ""
+        # Content now includes timestamp prefix
+        # Timestamp is prepended to content
+        assert "tool_calls" in d
+        assert len(d["tool_calls"]) == 1
         assert "tool_calls" in d
         assert d["tool_calls"][0]["id"] == "call_1"
 

@@ -16,6 +16,41 @@ from src.types.agent import ToolDefinition
 logger = logging.getLogger("kinetic.opencode")
 
 
+def _find_similar_project(workspace: str, task: str) -> dict | None:
+    """Scan workspace for existing PROJECT.md files matching the task."""
+    import re as _re
+    task_lower = task.lower()
+    task_words = set(_re.findall(r"[a-z]{4,}", task_lower))
+
+    workspace_path = Path(workspace)
+    if not workspace_path.is_dir():
+        return None
+
+    best_match = None
+    best_score = 0
+
+    for proj_dir in workspace_path.iterdir():
+        if not proj_dir.is_dir():
+            continue
+        proj_file = proj_dir / "PROJECT.md"
+        if not proj_file.exists():
+            continue
+        try:
+            content = proj_file.read_text("utf-8", errors="replace")
+        except Exception:
+            continue
+
+        # Score: count how many task words appear in the PROJECT.md
+        content_lower = content.lower()
+        score = sum(1 for w in task_words if w in content_lower)
+        if score > best_score:
+            best_score = score
+            best_match = {"name": proj_dir.name, "desc": content[:300].strip()}
+
+    # Only match if at least 2 keywords overlap
+    return best_match if best_score >= 2 else None
+
+
 async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
     task = args.get("task", "").strip()
     if not task:
@@ -27,15 +62,27 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
 
     # Resolve project directory
     if workspace:
+        import re as _re
         # Auto-name: first significant word from task, or "project"
         if not project_name:
-            import re as _re
             words = _re.findall(r"[a-zA-Z]\w+", task)
             stop = {"opencode", "write", "create", "make", "build",
                     "implement", "simple", "me", "a", "an", "the", "new"}
             filtered = [w for w in words if w.lower() not in stop]
             project_name = (filtered[0] if filtered else "project").lower()
         project_path = (Path(workspace) / project_name).resolve()
+
+        # Check for existing projects with PROJECT.md
+        existing = _find_similar_project(workspace, task)
+        if existing:
+            return (
+                f"I found an existing project '{existing['name']}' "
+                f"that seems related to your task:\n"
+                f"{existing['desc']}\n\n"
+                f"Would you like to use it, or should I create a new project "
+                f"called '{project_name}'?"
+            )
+
         project_path.mkdir(parents=True, exist_ok=True)
         logger.info("[OPENCODE] Working in %s", project_path)
     else:
@@ -107,6 +154,23 @@ async def _call_opencode(args: dict[str, Any], ctx: ToolContext | None) -> str:
             text = part.get("text", "")
             if text:
                 final_text += text + "\n"
+
+    # Write PROJECT.md summary
+    if files_changed and workspace:
+        try:
+            proj_md = project_path / "PROJECT.md"
+            if not proj_md.exists():
+                file_list = "\n".join(f"- {Path(f['path']).name}" for f in files_changed[:15])
+                proj_md.write_text(
+                    f"# {project_name.replace('_', ' ').title()}\n\n"
+                    f"**Task:** {task}\n"
+                    f"**Created:** {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+                    f"## Files\n{file_list}\n",
+                    encoding="utf-8",
+                )
+                logger.info("[OPENCODE] Wrote PROJECT.md")
+        except Exception:
+            pass
 
     # Get git diff after changes
     diff_after = ""
