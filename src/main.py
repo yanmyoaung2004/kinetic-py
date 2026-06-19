@@ -181,6 +181,9 @@ class KinetiCBot:
         self.dispatcher.load_and_register_agent(AGENTS_CONFIG)
         self._agent_target = AGENT_TARGET
         self._start_time = __import__("time").time()
+        self._last_user_message: float = __import__("time").time()
+        self._last_briefing_date: str = ""
+        self._user_chat_id: int | None = None
 
     async def handle_command(self, update: Update, context: Any = None) -> None:
         msg = update.message
@@ -359,6 +362,8 @@ class KinetiCBot:
             return
         chat_id = msg.chat_id
         user_id = update.effective_user.id if update.effective_user else 0
+        self._last_user_message = __import__("time").time()
+        self._user_chat_id = chat_id or self._user_chat_id
 
         # Authorization
         if ALLOWLIST and user_id not in ALLOWLIST:
@@ -406,6 +411,8 @@ class KinetiCBot:
             return
         chat_id = msg.chat_id
         caption = (msg.caption or "").strip()
+        self._last_user_message = __import__("time").time()
+        self._user_chat_id = chat_id or self._user_chat_id
 
         assert msg.chat is not None
 
@@ -471,6 +478,8 @@ class KinetiCBot:
         if msg is None or not msg.voice:
             return
         chat_id = msg.chat_id
+        self._last_user_message = __import__("time").time()
+        self._user_chat_id = chat_id or self._user_chat_id
 
         assert msg.chat is not None
         await msg.chat.send_action("typing")
@@ -558,17 +567,23 @@ class KinetiCBot:
 
     async def _scheduler_loop(self) -> None:
         global _shutting_down
+        # Track which task IDs have been warned to avoid duplicate reminders
+        _warned: set[str] = set()
         while not (_shutting_down and _shutting_down.is_set()):
             try:
-                from src.agents.tasks.scheduler import get_overdue_tasks, mark_task_run
+                from src.agents.tasks.scheduler import get_overdue_tasks, get_upcoming_tasks, mark_task_run
 
+                now = __import__("datetime").datetime.now()
+
+                # ── 1. Overdue tasks (past due) ──
                 overdue = get_overdue_tasks()
                 for item in overdue:
                     agent_id = item["agent_id"]
                     task = item["task"]
                     task_type = task.get("type", "once")
                     desc = task.get("description", "")
-                    logger.info("[SCHEDULER] Running task '%s' for %s", desc, agent_id)
+                    chat_id = task.get("chat_id")
+                    logger.info("[SCHEDULER] Running overdue task '%s' for %s", desc, agent_id)
                     try:
                         if task_type == "monitor":
                             check_prompt = task.get("query", desc)
@@ -576,20 +591,84 @@ class KinetiCBot:
                             mark_task_run(agent_id, task["id"])
                             resp_upper = (response or "").upper()
                             if any(kw in resp_upper for kw in ("CONDITION_MET", "ALERT", "YES", "CONDITION MET")):
-                                chat_id = task.get("chat_id")
                                 if chat_id and self._app:
                                     safe = _convert_markdown(f"[MONITOR] Triggered: {desc}\n\n{response[:500]}")
                                     await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="HTML")
                         else:
+                            # Apologize for lateness if more than 2 min overdue
+                            apology = ""
+                            if chat_id and task.get("next_run", ""):
+                                try:
+                                    due = __import__("datetime").datetime.fromisoformat(task["next_run"])
+                                    late_min = (now - due).total_seconds() / 60
+                                    if late_min > 2:
+                                        apology = (
+                                    f"\n\n(Sorry this reminder is {int(late_min)}m late"
+                                    " — I'll do better!)"
+                                )
+                                except Exception:
+                                    pass
                             response = await self.dispatcher.dispatch(agent_id, f"[REMINDER] {desc}")
                             mark_task_run(agent_id, task["id"])
-                            chat_id = task.get("chat_id")
                             if chat_id and self._app:
-                                safe = _convert_markdown(response or "")
+                                text = (response or "") + apology
+                                safe = _convert_markdown(text)
                                 await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="HTML")
                     except Exception as e:
                         logger.warning("[SCHEDULER] Task '%s' failed: %s", task.get("id"), e)
                         mark_task_run(agent_id, task["id"])
+
+                # ── 2. Upcoming tasks (5 min warning) ──
+                upcoming = get_upcoming_tasks(5)
+                for item in upcoming:
+                    task_id = item["task"]["id"]
+                    if task_id in _warned:
+                        continue
+                    _warned.add(task_id)
+                    desc = item["task"].get("description", "")
+                    chat_id = item["task"].get("chat_id")
+                    if chat_id and self._app:
+                        msg = f"⏰ Reminder: {desc} coming up in about 5 minutes."
+                        safe = _convert_markdown(msg)
+                        await self._app.bot.send_message(chat_id=chat_id, text=safe, parse_mode="HTML")
+
+                # Cleanup: remove warned ids for tasks that no longer exist
+                all_ids = {item["task"]["id"] for item in overdue + upcoming}
+                _warned &= all_ids
+
+                # ── 3. Morning briefing (7 AM, once per day) ──
+                today_str = now.strftime("%Y-%m-%d")
+                if now.hour == 7 and now.minute < 2 and self._last_briefing_date != today_str:
+                    self._last_briefing_date = today_str
+                    if self._app:
+                        from src.agents.tools.briefing_tool import _daily_briefing
+                        from src.agents.tools.registry import ToolContext
+                        briefing = await _daily_briefing({}, ToolContext())
+                        if briefing and not briefing.startswith("ERROR"):
+                            safe = _convert_markdown(f"☀️ Good morning! Here's your briefing.\n\n{briefing}")
+                            # Send to all chats that have tasks
+                            sent_to: set[int] = set()
+                            for item in overdue + upcoming:
+                                cid = item["task"].get("chat_id")
+                                if cid and cid not in sent_to:
+                                    sent_to.add(cid)
+                                    await self._app.bot.send_message(chat_id=cid, text=safe, parse_mode="HTML")
+                            if not sent_to:
+                                logger.info("[SCHEDULER] Morning briefing ready but no chat_id to send to")
+
+                # ── 4. Idle check-in (3+ hours) ──
+                idle_hours = (__import__("time").time() - self._last_user_message) / 3600
+                if idle_hours > 3 and self._app and now.hour < 22:
+                    self._last_user_message = __import__("time").time()
+                    check_in = "Hey, been a while. Just checking in — anything on your mind?"
+                    if self._user_chat_id:
+                        try:
+                            await self._app.bot.send_message(
+                                chat_id=self._user_chat_id,
+                                text=check_in,
+                            )
+                        except Exception:
+                            pass
             except Exception:
                 pass
             await asyncio.sleep(10)

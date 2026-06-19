@@ -107,6 +107,32 @@ def get_overdue_tasks() -> list[dict[str, Any]]:
     return overdue
 
 
+def get_upcoming_tasks(window_minutes: int = 5) -> list[dict[str, Any]]:
+    """Return tasks due within the next N minutes (but not overdue)."""
+    now = datetime.now()
+    now_ts = now.timestamp() * 1000
+    window_end = (now + timedelta(minutes=window_minutes)).timestamp() * 1000
+    upcoming: list[dict[str, Any]] = []
+
+    if not TASKS_DIR.exists():
+        return upcoming
+
+    for agent_dir in TASKS_DIR.iterdir():
+        if not agent_dir.is_dir():
+            continue
+        tasks = _read_tasks(agent_dir.name)
+        for t in tasks:
+            next_run = t.get("next_run", "")
+            if next_run:
+                try:
+                    ts = datetime.fromisoformat(next_run).timestamp() * 1000
+                    if now_ts < ts <= window_end:
+                        upcoming.append({"agent_id": agent_dir.name, "task": t})
+                except (ValueError, TypeError):
+                    continue
+    return upcoming
+
+
 def mark_task_run(agent_id: str, task_id: str) -> None:
     tasks = _read_tasks(agent_id)
     for t in tasks:
