@@ -211,6 +211,8 @@ class AgentInstance(IAgent):
         self._mode = mode
         self._current_chat_id: int | None = None
         self._on_token: Callable[[str], None] | None = None
+        self._last_tool_sequence: list[str] = []
+        self._last_user_message: str = ""
         self._MAX_ITERATIONS = 3
 
         self._think_providers = _create_think_providers(think_stage, endpoints)
@@ -408,6 +410,8 @@ class AgentInstance(IAgent):
         if chat_id is not None:
             self._current_chat_id = chat_id
         self._on_token = on_token
+        self._last_tool_sequence = []
+        self._last_user_message = message
         self._memory.append(ChatMessage(role="user", content=message))
 
 
@@ -449,6 +453,24 @@ class AgentInstance(IAgent):
         # Stage 1.5: Recall relevant past memories (injected into think loop, not persisted)
         recall = await self._recall_memories(message)
 
+        # Stage 1.6: Recall learned workflows and inject as context
+        try:
+            from src.agents.learning import find_workflows
+            workflows = await find_workflows(message)
+            if workflows:
+                best = workflows[0]
+                seq = " → ".join(best["tool_sequence"])
+                self._memory.append(ChatMessage(
+                    role="system",
+                    content=(
+                        f"[LEARNED WORKFLOW] For '{best['trigger']}' tasks,"
+                        f" the proven sequence is: {seq}."
+                        " Stick to this sequence. Do not call unrelated tools."
+                    ),
+                ))
+        except Exception:
+            pass
+
         # Stage 2: Think loop
         response = await self._run_think_loop(current_depth, recall=recall, on_token=on_token)
 
@@ -483,6 +505,10 @@ class AgentInstance(IAgent):
                     response = polished.content
             except Exception:
                 pass
+
+        # Auto-feedback: after tool calls, ask user to rate
+        if self._last_tool_sequence and current_depth == 0:
+            response += "\n\n---\nAre you satisfied with how that was handled? (yes/\"/perfect\" to save)"
 
         # Background tasks (deferred, never block response)
         async def _background() -> None:
@@ -637,6 +663,8 @@ class AgentInstance(IAgent):
                     seen_args.add(args_key)
 
                     logger.info("[TOOL] %s -> %s", self.id, fn_name)
+                    if fn_name not in ("get_current_time",) and fn_name not in self._last_tool_sequence:
+                        self._last_tool_sequence.append(fn_name)
 
                     if fn_name == "spawn_specialist":
                         result = await self._execute_spawn_specialist(fn_args, current_depth)

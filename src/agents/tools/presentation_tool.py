@@ -618,6 +618,19 @@ def create_presentation_tool() -> ToolHandler:
         SANDBOX.mkdir(parents=True, exist_ok=True)
         out = (SANDBOX / filename).resolve()
         prs.save(str(out))
+
+        # Auto-queue file for sending via Telegram
+        if ctx and ctx.chat_id:
+            try:
+                import src.agents.tools.send_file_tool as _sft
+                content = out.read_bytes()
+                _sft._pending.setdefault(ctx.chat_id, []).append({
+                    "filename": filename,
+                    "content": content,
+                })
+            except Exception:
+                pass
+
         return f"Created: {filename} ({len(slides_data) + 1} slides, {st.name}, {fmt})"
 
     return ToolHandler(

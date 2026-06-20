@@ -71,6 +71,9 @@ COMMANDS_HELP = """
 /knowledge list — List indexed documents
 /knowledge remove <id> — Remove a document from the index
 /search <query> — Search conversation history
+/perfect — Learn from the last successful workflow
+/forget <trigger> — Forget a learned workflow
+/workflows — Show all learned workflows
 """
 
 
@@ -400,6 +403,44 @@ class KinetiCBot:
                 await msg.reply_text(f"Search results for '{query}':\n\n" + "\n---\n".join(matches))
             return
 
+        if cmd == "/perfect":
+            from src.agents.learning import save_workflow
+            main_agent = self.dispatcher._active_agents.get(self._agent_target)
+            seq = getattr(main_agent, "_last_tool_sequence", None) if main_agent else None
+            if seq:
+                user_msg = getattr(main_agent, "_last_user_message", "") or ""
+                import re
+                words = re.findall(r"[a-zA-Z]{4,}", user_msg)
+                stop = {"write", "create", "make", "build", "tell", "show",
+                        "give", "send", "what", "how", "can", "will", "please",
+                        "that", "this", "with", "from", "have", "been", "were",
+                        "about", "want", "need", "like", "know", "use", "get"}
+                trigger = next((w for w in words if w.lower() not in stop), "task")
+                await save_workflow(trigger.lower(), seq, user_msg[:200])
+                await msg.reply_text(f"✓ Learned workflow for '{trigger}': {' → '.join(seq)}")
+            else:
+                await msg.reply_text("No recent tool calls to learn from.")
+            return
+
+        if cmd == "/forget" and len(parts) >= 2:
+            from src.agents.learning import forget_workflow
+            ok = await forget_workflow(parts[1].lower())
+            await msg.reply_text(f"{'✓ Forgotten.' if ok else 'Not found.'}")
+            return
+
+        if cmd == "/workflows":
+            from src.agents.learning import list_workflows
+            wfs = await list_workflows()
+            if not wfs:
+                await msg.reply_text("No workflows learned yet.")
+            else:
+                lines = [f"Learned workflows ({len(wfs)}):"]
+                for w in wfs:
+                    seq = " → ".join(w["tool_sequence"])
+                    lines.append(f"  • {w['trigger']} (x{w['success_count']}): {seq}")
+                await msg.reply_text("\n".join(lines))
+            return
+
     async def handle_message(self, update: Update, context: Any = None) -> None:
         msg = update.message
         if msg is None or not msg.text:
@@ -610,6 +651,9 @@ class KinetiCBot:
                             "task",
                             "knowledge",
                             "search",
+                            "perfect",
+                            "forget",
+                            "workflows",
                         ],
                         self.handle_command,
                     )
