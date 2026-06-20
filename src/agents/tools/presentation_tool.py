@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
@@ -18,6 +21,8 @@ from pptx.util import Inches, Pt
 
 from src.agents.tools.registry import ToolContext, ToolHandler
 from src.types.agent import ToolDefinition
+
+logger = logging.getLogger("kinetic.presentation")
 
 SANDBOX = Path("agent_sandbox")
 
@@ -435,17 +440,120 @@ async def _build_slide(
         _bullets(tf, content, st)
 
 
+async def _generate_slides_from_topic(
+    topic: str, title: str, model: str, api_key: str, base_url: str,
+) -> list[dict[str, Any]]:
+    """Use a more powerful LLM to generate slide content from a topic."""
+    prompt = f"""Create a professional presentation about: {topic}
+
+Return a JSON array of slides. Each slide has:
+- "title": slide title (short, clear)
+- "content": array of bullet points (3-6 each, 3-8 words each, parallel structure)
+
+Rules:
+- 4-6 slides total
+- First slide after title should be an overview/agenda
+- Keep content factual and specific, not vague
+- Use parallel structure for bullets (same verb tense, same format)
+
+Return ONLY valid JSON, no markdown, no explanation."""
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_completion_tokens": 2000,
+                },
+            )
+            resp.raise_for_status()
+            body = resp.text
+            logger.info("[PPT] API responded: %d bytes", len(body))
+            data = json.loads(body)
+            raw = data["choices"][0]["message"]["content"].strip()
+            logger.info("[PPT] Model response preview: %s", raw[:300])
+
+            def _find_json(text: str) -> Any | None:
+                """Extract JSON from model response using multiple strategies."""
+                # 1. Direct parse
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError:
+                    pass
+                # 2. Strip markdown fences
+                c = text.strip()
+                for p in ("```json", "```"):
+                    c = c.removeprefix(p).lstrip()
+                c = c.removesuffix("```").rstrip()
+                try:
+                    return json.loads(c)
+                except json.JSONDecodeError:
+                    pass
+                # 3. Find balanced brackets line by line
+                lines = text.split("\n")
+                combined = []
+                active = False
+                depth = 0
+                for line in lines:
+                    s = line.strip()
+                    if not active:
+                        idx = s.find("[")
+                        if idx >= 0:
+                            active = True
+                            combined.append(s[idx:])
+                            depth = s[idx:].count("[") - s[idx:].count("]")
+                    else:
+                        combined.append(s)
+                        depth += s.count("[") - s.count("]")
+                        if depth <= 0:
+                            break
+                if combined:
+                    try:
+                        return json.loads("\n".join(combined))
+                    except json.JSONDecodeError:
+                        pass
+                return None
+
+            parsed = _find_json(raw)
+            if parsed is None:
+                logger.warning("[PPT] Parse failed. Raw: %s...", raw[:200])
+                return []
+            if isinstance(parsed, dict) and "slides" in parsed:
+                parsed = parsed["slides"]
+            if isinstance(parsed, list):
+                logger.info("[PPT] Generated %d slides", len(parsed))
+                return parsed
+            return []
+    except Exception as e:
+        logger.warning("[PPT] Topic gen failed: %s", e)
+        return []
+
+
 def create_presentation_tool() -> ToolHandler:
     async def _execute(args: dict[str, Any], ctx: ToolContext | None) -> str:
         filename = args.get("filename", "presentation.pptx").strip()
         if not filename.endswith(".pptx"):
             filename += ".pptx"
 
-        slides = args.get("slides", [])
-        if not slides:
-            return "ERROR: 'slides' list is required."
-
         title = args.get("title", "Presentation")
+
+        # Read power model config at call time (after .env is loaded)
+        power_model = os.environ.get("POWERPOINT_MODEL", "")
+        power_key = os.environ.get("POWERPOINT_API_KEY", "") or os.environ.get("GROQ_API_KEY", "")
+        power_url = os.environ.get("POWERPOINT_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+
+        if power_model and power_key:
+            logger.info("[PPT] Using power model %s for content generation", power_model)
+            slides_data = await _generate_slides_from_topic(title, title, power_model, power_key, power_url)
+            if not slides_data:
+                return "ERROR: Failed to generate slides via power model."
+        else:
+            slides_data = args.get("slides", [])
+            if not slides_data:
+                return "ERROR: Provide 'slides' or set POWERPOINT_MODEL + POWERPOINT_API_KEY in .env."
         subtitle = args.get("subtitle", "")
         style_name = args.get("style", "corporate").lower()
         fmt = args.get("format", "16:9").lower()
@@ -486,7 +594,7 @@ def create_presentation_tool() -> ToolHandler:
         p3.font.color.rgb = st.light
         p3.alignment = PP_ALIGN.CENTER
 
-        for sd in slides:
+        for sd in slides_data:
             stitle = sd.get("title", "Slide")
             content = sd.get("content", [])
             if isinstance(content, str):
@@ -510,17 +618,18 @@ def create_presentation_tool() -> ToolHandler:
         SANDBOX.mkdir(parents=True, exist_ok=True)
         out = (SANDBOX / filename).resolve()
         prs.save(str(out))
-        return f"Created: {filename} ({len(slides) + 1} slides, {st.name}, {fmt})"
+        return f"Created: {filename} ({len(slides_data) + 1} slides, {st.name}, {fmt})"
 
     return ToolHandler(
         definition=ToolDefinition(
             function={
                 "name": "create_presentation",
                 "description": (
-                    "Create a professional PowerPoint presentation. "
-                    "IMPORTANT — before calling this tool, structure your content:"
-                    " Keep bullets short (3-6 words each), use parallel structure,"
-                    " and search_images for relevant photos to include."
+                    "Create a professional PowerPoint presentation."
+                    " Provide 'title' and optionally 'slides', 'style',"
+                    " 'transition'. Keep content short and structured."
+                    " (If POWERPOINT_MODEL is set in .env, the tool"
+                    " auto-generates better content using a stronger AI model.)"
                 ),
                 "parameters": {
                     "type": "object",
@@ -586,7 +695,7 @@ def create_presentation_tool() -> ToolHandler:
                             },
                         },
                     },
-                    "required": ["title", "slides"],
+                    "required": ["title"],
                 },
             },
         ),
