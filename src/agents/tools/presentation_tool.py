@@ -517,8 +517,10 @@ def create_presentation_tool() -> ToolHandler:
             function={
                 "name": "create_presentation",
                 "description": (
-                    "Create a professional PowerPoint with charts, images,"
-                    " timelines, comparison slides, tables, and 8 visual styles."
+                    "Create a professional PowerPoint presentation. "
+                    "IMPORTANT — before calling this tool, structure your content:"
+                    " Keep bullets short (3-6 words each), use parallel structure,"
+                    " and search_images for relevant photos to include."
                 ),
                 "parameters": {
                     "type": "object",
@@ -545,10 +547,12 @@ def create_presentation_tool() -> ToolHandler:
                                         "type": "array",
                                         "items": {"type": "string"},
                                         "description": (
-                                            "Auto-detects: bullets, code (```), quiz (?),"
-                                            " two_column, timeline (time:desc),"
-                                            " table (|col|col|), comparison, section,"
-                                            " center_text. Use # for sub-heading, > for quote."
+                                            "Slide content — each item is one line."
+                                            " Keep bullets short (3-6 words) and parallel."
+                                            " Auto-detects: bullets (default), code (```),"
+                                            " quiz (?), two_column, timeline (time:desc),"
+                                            " table (|col|col|), section, center_text."
+                                            " Use # for sub-heading, > for quote."
                                         ),
                                     },
                                     "layout": {
