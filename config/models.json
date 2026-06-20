@@ -10,7 +10,7 @@
     },
     "think": {
       "provider": "lightning",
-      "model": "lightning-ai/gpt-oss-120b"
+      "model": "deepseek-v4-flash"
     },
     "tool_call": {
       "provider": "lightning",
@@ -25,6 +25,10 @@
     "lightning": {
       "baseUrl": "https://lightning.ai/api/v1/",
       "apiKeyEnv": "LIGHTNING_API_KEY"
+    },
+    "opencode": {
+      "baseUrl": "https://opencode.ai/zen/go/v1",
+      "apiKeyEnv": "OPENCODE_API_KEY"
     },
     "ollama-embedding": {
       "baseUrl": "http://127.0.0.1:11434/v1/",

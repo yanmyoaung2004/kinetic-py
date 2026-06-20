@@ -235,8 +235,14 @@ class KinetiCDispatcher:
         if override and override.provider in available:
             return override
 
-        provider = card.provider
-        model = card.model
+        # Stage config from models.json takes precedence over agent card for think
+        stage_cfg = d.get("think", StageModelConfig("", ""))
+        if stage_cfg.provider and stage_cfg.provider in available:
+            provider = stage_cfg.provider
+            model = stage_cfg.model or card.model
+        else:
+            provider = card.provider
+            model = card.model
         if provider not in available:
             fallback = available[0] if available else ""
             logger.warning(
@@ -249,7 +255,7 @@ class KinetiCDispatcher:
             model = d.get("think", StageModelConfig("", "")).model
 
         return StageModelConfig(
-            provider=provider, model=model, fallbacks=d.get("think", StageModelConfig("", "")).fallbacks
+            provider=provider, model=model, fallbacks=stage_cfg.fallbacks
         )
 
     def _schedule_eviction(self, target_id: str) -> None:

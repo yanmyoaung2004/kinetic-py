@@ -82,7 +82,10 @@ def _convert_markdown(text: str) -> str:
     import html
     import re
 
-    # Escape HTML entities first
+    # Handle <br> tags BEFORE html.escape (they'd become &lt;br&gt; otherwise)
+    text = text.replace("<br>", "\n").replace("<br/>", "\n")
+
+    # Escape HTML entities
     text = html.escape(text)
 
     # Protect code blocks from inline formatting
@@ -97,6 +100,17 @@ def _convert_markdown(text: str) -> str:
     text = re.sub(r"```[\s\S]*?```", _protect, text)
     # Inline code `...`
     text = re.sub(r"`[^`]+`", _protect, text)
+
+    # Convert headings to bold (### Title → <b>Title</b>)
+    text = re.sub(r"^#{1,6}\s+(.+?)$", r"<b>\1</b>", text, flags=re.MULTILINE)
+    # Convert horizontal rules (---) to empty line
+    text = re.sub(r"\n-{3,}\n", "\n\n", text)
+    # Convert markdown tables to indented lines (| a | b | → \n • a: b)
+    text = re.sub(r"^\|(.+)\|$", lambda m: "  • " + " — ".join(
+        c.strip() for c in m.group(1).split("|") if c.strip()
+    ), text, flags=re.MULTILINE)
+    # Remove separator lines in tables (|---|---|)
+    text = re.sub(r"^  • [\s\-:]+\s*$", "", text, flags=re.MULTILINE)
 
     # Apply inline formatting on non-code text only
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)

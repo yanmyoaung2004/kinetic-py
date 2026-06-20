@@ -201,11 +201,15 @@ class UnifiedProvider:
         assert self._client_http is not None
         client = self._client_http
         base = self._config.base_url.rstrip("/")
+        raw_messages = [m.to_dict() for m in messages]
         body: dict[str, Any] = {
             "model": self.model,
-            "messages": [m.to_dict() for m in messages],
+            "messages": raw_messages,
             "temperature": self._config.temperature,
         }
+        # DeepSeek via OpenCode Go: disable thinking mode to avoid reasoning_content issues
+        if "deepseek" in self.model.lower() or "opencode" in self._config.base_url.lower():
+            body["thinking"] = {"type": "disabled"}
         if tools:
             body["tools"] = [t.to_dict() for t in tools]
             body["tool_choice"] = "auto"

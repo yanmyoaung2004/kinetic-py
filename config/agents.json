@@ -11,7 +11,7 @@
       "id": "main",
       "name": "Main",
       "soulPath": "./main/SOUL.md",
-      "provider": "lightning",
+      "provider": "opencode",
       "can_delegate": false
     },
     {
@@ -23,11 +23,17 @@
       "type": "library",
       "can_delegate": false,
       "tools": [
-        "sandbox_read_file", "sandbox_write_file", "sandbox_list_files",
-        "obsidian_create_note", "obsidian_edit_note",
-        "obsidian_search", "obsidian_graph_query",
-        "obsidian_daily_note", "obsidian_suggest_links",
-        "obsidian_daily_digest", "obsidian_canvas_add",
+        "sandbox_read_file",
+        "sandbox_write_file",
+        "sandbox_list_files",
+        "obsidian_create_note",
+        "obsidian_edit_note",
+        "obsidian_search",
+        "obsidian_graph_query",
+        "obsidian_daily_note",
+        "obsidian_suggest_links",
+        "obsidian_daily_digest",
+        "obsidian_canvas_add",
         "obsidian_spaced_repetition"
       ]
     },
@@ -35,18 +41,29 @@
       "id": "coding-assistant",
       "name": "Coding Assistant",
       "soulPath": "./coding-assistant/SOUL.md",
-      "provider": "lightning",
+      "provider": "opencode",
       "type": "library",
       "can_delegate": true,
       "tools": [
-        "read_file", "write_file", "sandbox_edit_file", "sandbox_delete_file",
-        "sandbox_list_files", "sandbox_undo_file", "download_url",
-        "execute_command", "run_code",
-        "read_env_var", "get_current_time",
-        "web_search", "query_knowledge_base",
-        "spawn_specialist", "send_message",
-        "schedule_task", "list_scheduled_tasks",
-        "create_monitor", "list_monitors"
+        "read_file",
+        "write_file",
+        "sandbox_edit_file",
+        "sandbox_delete_file",
+        "sandbox_list_files",
+        "sandbox_undo_file",
+        "download_url",
+        "execute_command",
+        "run_code",
+        "read_env_var",
+        "get_current_time",
+        "web_search",
+        "query_knowledge_base",
+        "spawn_specialist",
+        "send_message",
+        "schedule_task",
+        "list_scheduled_tasks",
+        "create_monitor",
+        "list_monitors"
       ]
     }
   ]

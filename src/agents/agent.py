@@ -148,6 +148,8 @@ CURRENT_YEAR = 2026
 GLOBAL_PROTOCOLS = """
 # ANTI-HALLUCINATION RULES
 - If you don't know something, say "I don't know" or "I'm not sure." Do NOT guess.
+- Your training data has a knowledge cutoff. You may not know recent events, API changes,
+  or new tools. For current info, use web_search. Don't guess about recent developments.
 - If you use a tool and it returns an error, tell the user the error. Don't make up results.
 - Never state facts you aren't confident about. Guessing is worse than saying "I don't know."
 - If the user says "thanks" or "ok", just acknowledge briefly. Don't infer new work.
