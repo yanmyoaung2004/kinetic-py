@@ -460,6 +460,7 @@ class AgentInstance(IAgent):
             if workflows:
                 best = workflows[0]
                 seq = " → ".join(best["tool_sequence"])
+                logger.info("[LEARN] >>> Using saved workflow '%s': %s", best["trigger"], seq)
                 self._memory.append(ChatMessage(
                     role="system",
                     content=(
@@ -506,9 +507,17 @@ class AgentInstance(IAgent):
             except Exception:
                 pass
 
-        # Auto-feedback: after tool calls, ask user to rate
+        # Auto-feedback: only ask if this tool sequence isn't already learned
         if self._last_tool_sequence and current_depth == 0:
-            response += "\n\n---\nAre you satisfied with how that was handled? (yes/\"/perfect\" to save)"
+            try:
+                from src.agents.learning import find_workflow_by_sequence
+                already = await find_workflow_by_sequence(self._last_tool_sequence)
+                if already:
+                    logger.info("[LEARN] Skipping feedback for already-learned workflow: %s", already["trigger"])
+                else:
+                    response += "\n\n---\nAre you satisfied? (/perfect to save)"
+            except Exception:
+                response += "\n\n---\nAre you satisfied? (/perfect to save)"
 
         # Background tasks (deferred, never block response)
         async def _background() -> None:

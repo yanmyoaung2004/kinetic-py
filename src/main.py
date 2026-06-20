@@ -742,6 +742,15 @@ class KinetiCBot:
                     _warned.add(task_id)
                     desc = item["task"].get("description", "")
                     chat_id = item["task"].get("chat_id")
+                    # Skip 5-min warning for tasks due in <3 min (e.g., "remind in 1 min")
+                    next_run = item["task"].get("next_run", "")
+                    if next_run:
+                        try:
+                            due_in = (__import__("datetime").datetime.fromisoformat(next_run) - now).total_seconds()
+                            if due_in < 180:  # less than 3 minutes
+                                continue
+                        except Exception:
+                            pass
                     if chat_id and self._app:
                         msg = f"⏰ Reminder: {desc} coming up in about 5 minutes."
                         safe = _convert_markdown(msg)

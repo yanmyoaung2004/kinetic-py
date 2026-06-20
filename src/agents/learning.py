@@ -84,6 +84,28 @@ async def find_workflows(message: str) -> list[dict]:
     return matches
 
 
+async def find_workflow_by_sequence(tool_sequence: list[str]) -> dict | None:
+    """Check if a workflow with this exact tool sequence already exists."""
+    await init_db()
+    seq_json = json.dumps(tool_sequence)
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM workflows WHERE tool_sequence = ?", (seq_json,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return {
+                "id": row["id"],
+                "trigger": row["trigger"],
+                "tool_sequence": json.loads(row["tool_sequence"]),
+                "user_message": row["user_message"],
+                "timestamp": row["timestamp"],
+                "success_count": row["success_count"],
+            }
+    return None
+
+
 async def forget_workflow(trigger: str) -> bool:
     """Delete a workflow by trigger word."""
     await init_db()
