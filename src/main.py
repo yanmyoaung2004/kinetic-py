@@ -409,13 +409,11 @@ class KinetiCBot:
             seq = getattr(main_agent, "_last_tool_sequence", None) if main_agent else None
             if seq:
                 user_msg = getattr(main_agent, "_last_user_message", "") or ""
-                import re
-                words = re.findall(r"[a-zA-Z]{4,}", user_msg)
-                stop = {"write", "create", "make", "build", "tell", "show",
-                        "give", "send", "what", "how", "can", "will", "please",
-                        "that", "this", "with", "from", "have", "been", "were",
-                        "about", "want", "need", "like", "know", "use", "get"}
-                trigger = next((w for w in words if w.lower() not in stop), "task")
+                trigger = seq[0]
+                for prefix in ("sandbox_", "obsidian_", "create_", "get_", "list_"):
+                    trigger = trigger.replace(prefix, "")
+                if len(trigger) < 3:
+                    trigger = "task"
                 await save_workflow(trigger.lower(), seq, user_msg[:200])
                 await msg.reply_text(f"✓ Learned workflow for '{trigger}': {' → '.join(seq)}")
             else:
