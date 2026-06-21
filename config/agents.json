@@ -11,7 +11,7 @@
       "id": "main",
       "name": "Main",
       "soulPath": "./main/SOUL.md",
-      "provider": "opencode",
+      "provider": "lightning",
       "can_delegate": false
     },
     {
@@ -41,7 +41,7 @@
       "id": "coding-assistant",
       "name": "Coding Assistant",
       "soulPath": "./coding-assistant/SOUL.md",
-      "provider": "opencode",
+      "provider": "lightning",
       "type": "library",
       "can_delegate": true,
       "tools": [
@@ -64,6 +64,50 @@
         "list_scheduled_tasks",
         "create_monitor",
         "list_monitors"
+      ]
+    },
+    {
+      "id": "security-agent",
+      "name": "Security Agent",
+      "soulPath": "./security-agent/SOUL.md",
+      "provider": "lightning",
+      "type": "library",
+      "can_delegate": false,
+      "tools": [
+        "security_scan_system",
+        "security_scan_network",
+        "security_process_info",
+        "security_kill_process",
+        "security_block_ip",
+        "security_unblock_ip",
+        "security_check_logs",
+        "security_set_watch",
+        "security_list_watches",
+        "security_remove_watch",
+        "security_audit_startup",
+        "security_audit_scheduled_tasks",
+        "security_audit_usb",
+        "security_generate_report",
+        "security_ping_sweep",
+        "security_scan_ports",
+        "security_audit_wifi",
+        "security_lookup_cve",
+        "security_check_ip",
+        "security_audit_users",
+        "security_firewall_rules",
+        "security_drive_health",
+        "security_persistence_check",
+        "security_defender_scan",
+        "security_hosts_check",
+        "security_browser_audit",
+        "security_remove_firewall_rule",
+        "security_defender_set",
+        "security_elevate_bot",
+        "network_dns_lookup",
+        "network_traceroute",
+        "network_whois",
+        "network_bandwidth",
+        "send_message"
       ]
     }
   ]

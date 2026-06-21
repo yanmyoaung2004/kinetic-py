@@ -10,7 +10,7 @@
     },
     "think": {
       "provider": "lightning",
-      "model": "deepseek-v4-flash"
+      "model": "lightning-ai/gpt-oss-120b"
     },
     "tool_call": {
       "provider": "lightning",

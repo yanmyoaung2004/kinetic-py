@@ -66,8 +66,8 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
         label = get_type_label(result)
         file_info = f"[Uploaded {label}: {result['name']} ({result.get('size', 0)} bytes)]\n\n"
         file_content = result.get("content", "")
-        if len(file_content) > 50000:
-            file_content = file_content[:50000] + "\n\n[...content truncated at 50000 chars]"
+        if len(file_content) > 15000:
+            file_content = file_content[:15000] + "\n\n[...content truncated at 15000 chars]"
 
         full_message = f"{file_info}{file_content}"
         if message.strip():

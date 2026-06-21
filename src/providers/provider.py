@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -271,20 +272,33 @@ class UnifiedProvider:
 async def call_with_fallback(
     providers: list[UnifiedProvider],
     call_fn: Callable[[UnifiedProvider], Any],
+    max_retries: int = 2,
 ) -> LLMResponse:
     if not providers:
         raise RuntimeError("No providers available for call.")
     errors: list[str] = []
     for i, provider in enumerate(providers):
-        try:
-            return await call_fn(provider)
-        except Exception as err:
-            msg = f"{provider.model}: {err}"
-            errors.append(msg)
-            logger.warning(
-                "[FAILOVER] %s failed: %s. %s",
-                provider.model,
-                err,
-                "Trying fallback..." if i < len(providers) - 1 else "No more fallbacks.",
-            )
+        for attempt in range(max_retries):
+            try:
+                return await call_fn(provider)
+            except Exception as err:
+                if "429" in str(err) and attempt < max_retries - 1:
+                    import os
+                    base_wait = int(os.environ.get("RATE_LIMIT_RETRY_SECONDS", "3"))
+                    wait = base_wait * (attempt + 1)
+                    logger.warning(
+                        "[RATE_LIMIT] %s rate limited (429). Retrying in %ds... (attempt %d/%d)",
+                        provider.model, wait, attempt + 1, max_retries,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                msg = f"{provider.model}: {err}"
+                errors.append(msg)
+                logger.warning(
+                    "[FAILOVER] %s failed: %s. %s",
+                    provider.model,
+                    err,
+                    "Trying fallback..." if i < len(providers) - 1 else "No more fallbacks.",
+                )
+                break
     raise RuntimeError("All providers failed:\n" + "\n".join(errors))

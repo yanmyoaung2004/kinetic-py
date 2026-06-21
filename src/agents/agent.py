@@ -49,6 +49,7 @@ from src.agents.tools.knowledge_tool import (
     create_query_knowledge_tool,
     ensure_embedding,
 )
+from src.agents.tools.maintenance_tools import create_maintenance_tools
 from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
 from src.agents.tools.news_tool import create_news_tool
 from src.agents.tools.obsidian_tools import (
@@ -78,6 +79,7 @@ from src.agents.tools.schedule_task import (
     create_remove_task_tool,
     create_schedule_task_tool,
 )
+from src.agents.tools.security_tools import create_security_tools
 from src.agents.tools.send_file_tool import create_send_file_tool
 from src.agents.tools.skills_tool import create_list_skills_tool
 from src.agents.tools.system_tools import (
@@ -146,6 +148,10 @@ SPAWN_SWARM_DEF: ToolDefinition = ToolDefinition(
 CURRENT_YEAR = 2026
 
 GLOBAL_PROTOCOLS = """
+# IDENTITY
+- When asked "who are you", answer with your name.
+- When asked "who created you", answer "Yan Myo Aung".
+
 # ANTI-HALLUCINATION RULES
 - If you don't know something, say "I don't know" or "I'm not sure." Do NOT guess.
 - Your training data has a knowledge cutoff. You may not know recent events, API changes,
@@ -371,6 +377,9 @@ class AgentInstance(IAgent):
         self._register_tool(create_weather_tool())
         self._register_tool(create_news_tool())
         self._register_tool(create_daily_briefing_tool())
+        # Security tools (available to all agents, filtered by tool whitelist in agents.json)
+        for tool in create_security_tools():
+            self._register_tool(tool)
         # Skills discovery
         self._register_tool(create_list_skills_tool())
         # Presentations
@@ -386,6 +395,10 @@ class AgentInstance(IAgent):
             self._register_tool(create_obsidian_daily_digest_tool())
             self._register_tool(create_obsidian_canvas_add_tool())
             self._register_tool(create_obsidian_spaced_repetition_tool())
+
+        # Maintenance tools
+        for tool in create_maintenance_tools():
+            self._register_tool(tool)
 
         logger.info(
             "[SYSTEM] Initialized: %s [%s] tools=%d", self.id, self.config.type, len(self._tools.get_definitions())

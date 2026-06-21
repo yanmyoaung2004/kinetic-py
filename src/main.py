@@ -19,6 +19,8 @@ from src.agents.tools.send_file_tool import get_pending_files
 from src.config.loader import load_model_config, validate_endpoints
 from src.utils.file_reader import get_type_label, read_file
 
+_sent_content_hashes: set[int] = set()
+
 dotenv.load_dotenv()
 
 structlog.configure(
@@ -520,13 +522,17 @@ class KinetiCBot:
             return
         assert msg.chat is not None
         for f in files:
-            await msg.chat.send_action("upload_document")
             content = f["content"]
             if isinstance(content, str):
                 content = content.encode("utf-8")
+            content_hash = hash(content)
+            if content_hash in _sent_content_hashes:
+                continue
+            await msg.chat.send_action("upload_document")
             from telegram import InputFile
 
             await msg.reply_document(document=InputFile(content, filename=f["filename"]))
+            _sent_content_hashes.add(content_hash)
 
     async def handle_file(self, update: Update, context: Any = None) -> None:
         msg = update.message
@@ -579,13 +585,36 @@ class KinetiCBot:
                     await msg.reply_text(f"Error reading file: {result['error']}")
                     return
                 label = get_type_label(result)
-                file_info = f"[Uploaded via Telegram — {label}: {result['name']} ({result.get('size', 0)} bytes)]\n\n"
                 file_content = result.get("content", "")
-                if len(file_content) > 50000:
-                    file_content = file_content[:50000] + "\n\n[...truncated]"
-                full_message = f"{file_info}{file_content}"
-                if caption:
-                    full_message += f"\n\nUser message: {caption}"
+                chunk_size = 15000
+
+                if len(file_content) > chunk_size and caption:
+                    chunks = [file_content[i:i+chunk_size] for i in range(0, len(file_content), chunk_size)]
+                    total = len(chunks)
+                    for idx, chunk in enumerate(chunks):
+                        chunk_msg = (
+                            f"[Uploaded via Telegram — {label}: {result['name']}]"
+                            f" [Part {idx+1}/{total}]\n\n{chunk}"
+                            f"\n\nUser message: {caption}"
+                        )
+                        task = asyncio.create_task(
+                            self.dispatcher.dispatch(self._agent_target, chunk_msg, 0, chat_id)
+                        )
+                        typing = asyncio.create_task(_typing_indicator(msg.chat, task))
+                        response = await task
+                        safe = _convert_markdown(response)
+                        await _send_long_message(msg, safe)
+                        typing.cancel()
+                    await self._send_pending_files(chat_id, update)
+                    return
+                else:
+                    info = f"{label}: {result['name']} ({result.get('size', 0)} bytes)"
+                    file_info = f"[Uploaded via Telegram — {info}]\n\n"
+                    if len(file_content) > chunk_size:
+                        file_content = file_content[:chunk_size] + "\n\n[...truncated]"
+                    full_message = f"{file_info}{file_content}"
+                    if caption:
+                        full_message += f"\n\nUser message: {caption}"
 
             task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
