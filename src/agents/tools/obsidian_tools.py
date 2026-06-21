@@ -1,7 +1,9 @@
+# ruff: noqa: E501
 """Obsidian tools — read, write, search, and link notes in your vault."""
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 
@@ -712,4 +714,146 @@ def create_obsidian_spaced_repetition_tool() -> ToolHandler:
             },
         ),
         execute=_obsidian_spaced_repetition,
+    )
+
+
+async def _obsidian_template(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    root = vault_path()
+    if not root:
+        return "ERROR: OBSIDIAN_VAULT_PATH not set."
+
+    template = args.get("template", "").strip().lower()
+    title = args.get("title", "").strip()
+    if not template:
+        return "ERROR: 'template' is required (e.g., 'meeting', 'journal')."
+    if not title:
+        return "ERROR: 'title' is required."
+
+    templates = {
+        "meeting": {
+            "path": f"Meetings/{title}.md",
+            "content": f"# {title}\n\nDate: {datetime.now().strftime('%Y-%m-%d')}\n\n## Attendees\n\n## Agenda\n\n## Notes\n\n## Action Items\n",
+        },
+        "journal": {
+            "path": f"Journal/{title}.md",
+            "content": f"# {title}\n\nDate: {datetime.now().strftime('%Y-%m-%d')}\n\n## Today\n\n## Thoughts\n\n## Gratitude\n",
+        },
+        "project": {
+            "path": f"Projects/{title}.md",
+            "content": f"# {title}\n\n## Overview\n\n## Goals\n\n## Tasks\n\n## Notes\n",
+        },
+        "book": {
+            "path": f"Books/{title}.md",
+            "content": f"# {title}\n\nAuthor: \nStarted: {datetime.now().strftime('%Y-%m-%d')}\n\n## Summary\n\n## Key Takeaways\n\n## Quotes\n",
+        },
+    }
+
+    t = templates.get(template)
+    if not t:
+        keys = ", ".join(templates.keys())
+        return f"ERROR: Unknown template '{template}'. Available: {keys}"
+
+    file_path = (root / t["path"]).resolve()
+    if not str(file_path).startswith(str(root)):
+        return "ERROR: Path escapes vault."
+    if file_path.exists():
+        return f"ERROR: Note already exists at {t['path']}"
+
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    fm = build_frontmatter({"title": title, "created": datetime.now().strftime("%Y-%m-%d"), "tags": [template]})
+    file_path.write_text(fm + t["content"], encoding="utf-8")
+    return f"Created {template} note: {t['path']}"
+
+
+async def _obsidian_recent(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    root = vault_path()
+    if not root:
+        return "ERROR: OBSIDIAN_VAULT_PATH not set."
+
+    limit = min(int(args.get("limit", 10)), 50)
+    all_md = sorted(root.rglob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    lines = [f"Recently modified notes ({limit}):", ""]
+    for p in all_md[:limit]:
+        rel = p.relative_to(root)
+        mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        lines.append(f"  {mtime}  {rel}")
+    return "\n".join(lines)
+
+
+async def _obsidian_tags(args: dict[str, Any], ctx: ToolContext | None) -> str:
+    root = vault_path()
+    if not root:
+        return "ERROR: OBSIDIAN_VAULT_PATH not set."
+
+    tag_count: dict[str, int] = {}
+    for md in root.rglob("*.md"):
+        text = md.read_text("utf-8", errors="replace")
+        for tag in re.findall(r"#[\w/-]+", text):
+            if any(skip in tag for skip in ("#http", "#https", "#/")):
+                continue
+            tag_count[tag] = tag_count.get(tag, 0) + 1
+
+    sorted_tags = sorted(tag_count.items(), key=lambda x: -x[1])
+    lines = [f"Tag cloud ({len(sorted_tags)} tags):", ""]
+    for tag, count in sorted_tags[:30]:
+        bar = "█" * min(count, 20)
+        lines.append(f"  {tag:<25} {bar} {count}")
+    return "\n".join(lines)
+
+
+def create_obsidian_template_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "obsidian_template",
+                "description": (
+                    "Create a new Obsidian note from a template (meeting, journal, project, book). "
+                    "Saves to the appropriate vault folder with pre-filled frontmatter and structure."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "template": {
+                            "type": "string",
+                            "description": "Template type: 'meeting', 'journal', 'project', 'book'",
+                        },
+                        "title": {"type": "string", "description": "Title for the new note"},
+                    },
+                    "required": ["template", "title"],
+                },
+            },
+        ),
+        execute=_obsidian_template,
+    )
+
+
+def create_obsidian_recent_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "obsidian_recent",
+                "description": "List recently modified notes in the Obsidian vault.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "number", "description": "Number of notes to show (default 10, max 50)"},
+                    },
+                },
+            },
+        ),
+        execute=_obsidian_recent,
+    )
+
+
+def create_obsidian_tags_tool() -> ToolHandler:
+    return ToolHandler(
+        definition=ToolDefinition(
+            function={
+                "name": "obsidian_tags",
+                "description": "Show a tag cloud with note counts for all tags in the vault.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        ),
+        execute=_obsidian_tags,
     )

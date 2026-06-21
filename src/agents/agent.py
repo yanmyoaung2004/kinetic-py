@@ -40,6 +40,7 @@ from src.agents.tools.file_tools import (
     create_write_file_tool,
 )
 from src.agents.tools.git_tool import create_git_tool
+from src.agents.tools.habit_tool import create_habit_tools
 from src.agents.tools.image_search import create_image_search_tool
 from src.agents.tools.image_tool import create_generate_image_tool
 from src.agents.tools.knowledge_tool import (
@@ -59,12 +60,16 @@ from src.agents.tools.obsidian_tools import (
     create_obsidian_daily_note_tool,
     create_obsidian_edit_note_tool,
     create_obsidian_graph_query_tool,
+    create_obsidian_recent_tool,
     create_obsidian_search_tool,
     create_obsidian_spaced_repetition_tool,
     create_obsidian_suggest_links_tool,
+    create_obsidian_tags_tool,
+    create_obsidian_template_tool,
 )
 from src.agents.tools.opencode_tool import create_apply_opencode_tool, create_call_opencode_tool
 from src.agents.tools.pipeline_tool import create_run_pipeline_tool
+from src.agents.tools.pomodoro_tool import create_pomodoro_tools
 from src.agents.tools.presentation_tool import create_presentation_tool
 from src.agents.tools.registry import (
     ToolContext,
@@ -395,9 +400,18 @@ class AgentInstance(IAgent):
             self._register_tool(create_obsidian_daily_digest_tool())
             self._register_tool(create_obsidian_canvas_add_tool())
             self._register_tool(create_obsidian_spaced_repetition_tool())
+            self._register_tool(create_obsidian_template_tool())
+            self._register_tool(create_obsidian_recent_tool())
+            self._register_tool(create_obsidian_tags_tool())
 
         # Maintenance tools
         for tool in create_maintenance_tools():
+            self._register_tool(tool)
+
+        # Productivity tools
+        for tool in create_pomodoro_tools():
+            self._register_tool(tool)
+        for tool in create_habit_tools():
             self._register_tool(tool)
 
         logger.info(
