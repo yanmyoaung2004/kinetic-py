@@ -90,35 +90,11 @@ def _on_quit() -> None:
 
 
 def _on_settings() -> None:
-    import tkinter as tk
-    from tkinter import ttk, scrolledtext
-
+    """Open .env file in Notepad for editing."""
     env_path = Path(__file__).parent / ".env"
-    content = env_path.read_text() if env_path.exists() else ""
-
-    root = tk.Tk()
-    root.title("K.I.N.E.T.I.C. Settings — Edit .env")
-    root.geometry("700x500")
-
-    text = scrolledtext.ScrolledText(root, font=("Consolas", 10), wrap=tk.NONE)
-    text.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-    text.insert("1.0", content)
-
-    def _save():
-        env_path.write_text(text.get("1.0", tk.END).strip() + "\n")
-        # Reload into current env
-        for line in text.get("1.0", tk.END).splitlines():
-            if "=" in line and not line.startswith("#"):
-                k, v = line.split("=", 1)
-                os.environ[k.strip()] = v.strip()
-        root.destroy()
-
-    buttons = ttk.Frame(root)
-    buttons.pack(fill=tk.X, padx=8, pady=8)
-    ttk.Button(buttons, text="Save & Close", command=_save).pack(side=tk.RIGHT, padx=4)
-    ttk.Button(buttons, text="Cancel", command=root.destroy).pack(side=tk.RIGHT, padx=4)
-
-    root.mainloop()
+    if not env_path.exists():
+        env_path.write_text("# K.I.N.E.T.I.C. Environment Variables\n")
+    subprocess.Popen(["notepad", str(env_path)])
 
 
 _LOGO_PATH = Path(__file__).parent / "images" / "logo-white.png"
