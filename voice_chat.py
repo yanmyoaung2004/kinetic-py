@@ -106,6 +106,12 @@ async def _speak(text: str) -> None:
     if not text:
         return
 
+    import re as _re
+    # Strip emotional markers *laughs* -> laughs, **bold** -> bold
+    text = _re.sub(r"\*{1,2}(.*?)\*{1,2}", r"\1", text)
+    # Strip remaining asterisks
+    text = text.replace("*", "")
+
     # Collect MP3 audio
     audio = bytearray()
     comm = edge_tts.Communicate(text, VOICE, rate=SPEED)
