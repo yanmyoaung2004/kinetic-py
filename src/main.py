@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ctypes
 import json
 import logging
 import os
@@ -970,6 +971,16 @@ class KinetiCBot:
 
 def main() -> None:
     global _shutting_down
+
+    # Hide console window if HIDE_CONSOLE=1
+    if os.environ.get("HIDE_CONSOLE", "0") == "1":
+        try:
+            ctypes.windll.user32.ShowWindow(
+                ctypes.windll.kernel32.GetConsoleWindow(), 0
+            )
+        except Exception:
+            pass
+
     _shutting_down = asyncio.Event()
     bot = KinetiCBot()
 
