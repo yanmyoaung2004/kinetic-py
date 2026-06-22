@@ -29,7 +29,7 @@ async def main():
 
     # Collect all MP3 audio data
     audio_data = bytearray()
-    communicate = edge_tts.Communicate(text, voice)
+    communicate = edge_tts.Communicate(text, voice, rate="+20%")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             audio_data.extend(chunk["data"])

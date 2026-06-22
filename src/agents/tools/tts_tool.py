@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,8 @@ async def _tts_speak(args: dict[str, Any], ctx: ToolContext | None) -> str:
 
     # Generate MP3 audio
     audio_data = bytearray()
-    communicate = edge_tts.Communicate(text, voice)
+    rate = os.environ.get("TTS_SPEED", "+0%")
+    communicate = edge_tts.Communicate(text, voice, rate=rate)
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             audio_data.extend(chunk["data"])

@@ -615,7 +615,8 @@ class KinetiCBot:
 
         try:
             audio_data = bytearray()
-            comm = _tts.Communicate(speak_text, "en-GB-RyanNeural")
+            rate = os.environ.get("TTS_SPEED", "+0%")
+            comm = _tts.Communicate(speak_text, "en-GB-RyanNeural", rate=rate)
             async for chunk in comm.stream():
                 if chunk["type"] == "audio":
                     audio_data.extend(chunk["data"])
