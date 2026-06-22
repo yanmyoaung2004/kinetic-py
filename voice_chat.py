@@ -44,11 +44,26 @@ _status_queue: queue.Queue[int] = queue.Queue()
 _tray_icon: pystray.Icon | None = None
 
 
+_LOGO_PATH = Path(__file__).parent / "images" / "logo-white.png"
+_LOGO_CACHE: Image.Image | None = None
+
+
 def _make_icon(color_hex: str) -> Image.Image:
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+    global _LOGO_CACHE
+    if _LOGO_CACHE is None and _LOGO_PATH.exists():
+        _LOGO_CACHE = Image.open(str(_LOGO_PATH)).convert("RGBA").resize((64, 64), Image.LANCZOS)
+
+    if _LOGO_CACHE:
+        img = _LOGO_CACHE.copy()
+    else:
+        img = Image.new("RGBA", (64, 64), (30, 30, 30, 255))
+
+    # Draw status dot (bottom-right corner)
     r, g, b = int(color_hex[1:3], 16), int(color_hex[3:5], 16), int(color_hex[5:7], 16)
-    draw.ellipse([4, 4, 60, 60], fill=(r, g, b, 255))
+    draw = ImageDraw.Draw(img)
+    draw.ellipse([46, 46, 62, 62], fill=(r, g, b, 255))
+    # Thin border around the dot
+    draw.ellipse([46, 46, 62, 62], outline=(255, 255, 255, 200), width=1)
     return img
 
 
