@@ -200,6 +200,8 @@ async def _speak(text: str) -> None:
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16, channels=1, rate=24000, output=True)
     for i in range(0, len(pcm), 4096):
+        if keyboard.is_pressed(PUSH_TO_TALK_KEY):
+            break
         stream.write(pcm[i:i + 4096])
     stream.stop_stream()
     stream.close()
