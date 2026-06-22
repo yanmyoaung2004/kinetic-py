@@ -973,7 +973,7 @@ def main() -> None:
     global _shutting_down
 
     # Hide console window if HIDE_CONSOLE=1
-    if os.environ.get("HIDE_CONSOLE", "0") == "1":
+    if os.environ.get("HIDE_CONSOLE", "0").lower() in ("1", "true", "yes"):
         try:
             ctypes.windll.user32.ShowWindow(
                 ctypes.windll.kernel32.GetConsoleWindow(), 0

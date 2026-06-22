@@ -30,7 +30,7 @@ RECORD_FORMAT = pyaudio.paInt16
 RECORD_CHANNELS = 1
 RECORD_RATE = 16000
 RECORD_CHUNK = 1024
-HIDE_CONSOLE = os.environ.get("HIDE_CONSOLE", "1") == "1"
+HIDE_CONSOLE = os.environ.get("HIDE_CONSOLE", "1").lower() in ("1", "true", "yes")
 
 # ── Status ─────────────────────────────────────────────
 IDLE = 0
