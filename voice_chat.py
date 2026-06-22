@@ -12,6 +12,7 @@ import edge_tts
 import httpx
 import keyboard
 import pyaudio
+import speech_recognition as sr
 
 # ── Config ─────────────────────────────────────────────
 API_URL = "http://localhost:18789/api/chat"
@@ -72,23 +73,23 @@ def _record_to_wav() -> Path | None:
 
 
 async def _stt(wav_path: Path) -> str:
-    """Speech-to-text via Windows built-in System.Speech (PowerShell)."""
-    ps = (
-        'Add-Type -AssemblyName System.Speech;'
-        f'$e = New-Object System.Speech.Recognition.SpeechRecognitionEngine;'
-        f'$e.SetInputToWaveFile("{wav_path}");'
-        '$e.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar));'
-        '$r = $e.Recognize();'
-        'if ($r) { Write-Output $r.Text }'
-    )
-    proc = await asyncio.create_subprocess_exec(
-        "powershell", "-NoProfile", "-Command", ps,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
-    text = stdout.decode("utf-8", errors="replace").strip()
-    return text
+    """Speech-to-text via Google Web Speech API (free, no key, needs internet)."""
+    try:
+        r = sr.Recognizer()
+        with sr.AudioFile(str(wav_path)) as source:
+            audio = r.record(source)
+        text = await asyncio.get_event_loop().run_in_executor(
+            None, r.recognize_google, audio
+        )
+        return text
+    except sr.UnknownValueError:
+        return ""
+    except sr.RequestError as e:
+        print(f"   STT error: {e}")
+        return ""
+    except Exception as e:
+        print(f"   STT error: {e}")
+        return ""
 
 
 async def _query_bot(text: str) -> str:
