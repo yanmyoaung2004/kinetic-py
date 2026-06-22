@@ -1,217 +1,176 @@
 # K.I.N.E.T.I.C. — Capabilities
 
-## Agent framework
+## Agent Framework
 
 - **Dispatcher-registry architecture** — lazy-loads agents, evicts after 5 min idle
 - **Sub-agent spawning** — library agents with `can_delegate: true` spawn ephemeral specialists (max 3, depth 3)
-- **Inter-agent messaging** — `send_message` to any registered agent by ID. Depth-limited
-- **SOUL personality layer** — per-agent `SOUL.md` loaded as system prompt. Task-focused with strong imperatives. Auto-created when agents are added via Web UI or CLI.
-- **Stale system prompt detection** — `refreshSystemPrompt()` replaces the stored prompt if SOUL.md changed since the last session. No manual history cleanup needed.
-- **ReAct-style reasoning** — visible `[THINK]` prefix before tool calls
-- **Session management** — `/session new`, `/session list`, `/session <id>` — each session has independent history and profile
+- **Inter-agent messaging** — `send_message` to any registered agent by ID
+- **SOUL personality layer** — per-agent `SOUL.md` loaded as system prompt
+- **ReAct-style reasoning** — visible tool call cycles with think/execute loop
+- **Session management** — `/session new`, `/session list`, `/session <id>`
 
-## Memory & user profile
+## Memory & User Profile
 
-- **Persistent history** — JSONL at `agents_workspace/<agentId>/sessions/<sessionId>/history.jsonl`
-- **Capped at 500 messages** (configurable via `AGENT_MEMORY_MAX`), oldest trimmed
-- **Automatic context compression** — when history exceeds ~60 messages, older exchanges are summarized into a `[COMPRESSED HISTORY]` system message. Triggered fire-and-forget after every response. Saves ~70% of context on long conversations
-- **User profile extraction** — every 3 user messages, background LLM call extracts facts. Profile injected as system prompt on every init, survives restarts
-- **All background tasks deferred** — profile extraction, compression, and evolution run via `setImmediate()` after the response is returned. Never blocks the user-facing reply.
+- **Persistent history** — JSONL at `agents_workspace/<agentId>/history.jsonl`
+- **Capped at 500 messages** (configurable via `AGENT_MEMORY_MAX`)
+- **Context compression** — old exchanges summarized into `[COMPRESSED HISTORY]` when exceeding threshold
+- **User profile extraction** — background LLM extracts permanent facts every 3 messages
+- **All background tasks deferred** — never blocks the user-facing reply
 
-## Tool system — 37 tools
+## Tool System — 80+ Tools
 
-All tool definitions passed to the LLM each iteration; LLM decides which to call. Tools can be restricted per-agent via the `"tools"` whitelist in `agents.json`.
+All tools registered globally, restricted per-agent via `"tools"` whitelist in `agents.json`.
 
-| Tool | Condition | Description |
-|---|---|---|
-| `read_file` | Always | Read file from sandbox |
-| `write_file` | Always | Write file to sandbox (backup before overwrite) |
-| `edit_file` | Always | Find+replace in file (backup before edit) |
-| `delete_file` | Always | Delete file from sandbox (backup before delete) |
-| `list_files` | Always | List sandbox directory contents |
-| `undo_file` | Always | Restore most recent backup |
-| `download_url` | Always | Download URL to sandbox (5MB, 30s) |
-| `execute_command` | Always | Whitelisted system commands |
-| `run_code` | Always | Run Python code in sandbox |
-| `send_file` | Always | Send file to user via Telegram |
-| `get_current_time` | Always | Current date/time |
-| `get_system_info` | Always | OS, hostname, CPU, RAM, disk |
-| `read_env_var` | Always | Env var value (sensitive keys masked) |
-| `schedule_task` | Always | One-time and recurring reminders |
-| `create_monitor` | Always | Create recurring condition monitor |
-| `list_monitors` | Always | List active monitors |
-| `run_pipeline` | Always | Execute a multi-agent pipeline |
-| `spawn_specialist` | `can_delegate: true` | Ephemeral sub-agent |
-| `send_message` | 2+ agents | Inter-agent message |
-| `generate_image` | Image provider configured | Generate images from prompts |
-| `web_search` | `BRAVE_API_KEY` | Brave Search API |
-| `query_knowledge_base` | Embedding configured | Semantic search over indexed content |
-| `index_file` | Embedding configured | Index a sandbox file into knowledge base |
-| `index_url` | Embedding configured | Fetch URL and index into knowledge base |
-| `index_github` | Embedding configured | Fetch GitHub file/repo and index |
-| `scrape_and_index` | Embedding configured | Scrape web page and index |
-| `knowledge_stats` | Embedding configured | Show knowledge base stats |
-| `read_emails` | Email configured | Read recent emails |
-| `read_email_body` | Email configured | Read full email content |
-| `send_email` | Email configured | Send email |
-| `reply_to_email` | Email configured | Reply to email |
-| `browser_navigate` | Always | Navigate to a URL |
-| `browser_click` | Always | Click element via CSS selector |
-| `browser_fill` | Always | Fill input field |
-| `browser_extract` | Always | Extract text via CSS selector |
-| `browser_screenshot` | Always | Take page screenshot |
-| `browser_html` | Always | Get page HTML |
-| `browser_close` | Always | Close the browser |
+### File & Code (9)
+`read_file`, `write_file`, `edit_file`, `delete_file`, `list_files`, `undo_file`, `download_url`, `execute_command`, `run_code`
 
-## Knowledge base (RAG)
+### System & Maintenance (6)
+`get_current_time`, `get_system_info`, `read_env_var`, `system_temp_cleanup`, `system_disk_usage`, `system_startup_optimize`
 
-- **Embedding** via any OpenAI-compatible provider (configured in `models.json` under `"embedding"`)
-- **Vector store** — JSON-based with cosine similarity. Documents chunked (500 char chunks, 50 char overlap)
-- **Index sources**: sandbox files, web URLs, GitHub repos/files, any scraped web page
-- **Query**: `query_knowledge_base` tool returns top-5 chunks with relevance scores
-- **Commands**: `/knowledge` (stats), `/knowledge list` (documents), `/knowledge remove <id>`
+### Browser (7)
+`browser_navigate`, `browser_click`, `browser_fill`, `browser_extract`, `browser_screenshot`, `browser_html`, `browser_close`
 
-## Multi-agent pipelines
+### Communication (5)
+`send_file`, `send_message`, `send_email`, `read_emails`, `read_email_body`, `reply_to_email`
 
-- **Definition**: JSON format with sequential steps, each step specifies agent + prompt template + output variable
-- **Template variables**: `{{variable_name}}` — replaced with outputs from previous steps
-- **Execution**: `run_pipeline` tool or POST `/api/pipelines/execute`
-- **Web UI**: Create and manage pipelines through the dashboard
-- **Storage**: JSON files at `agents_workspace/.pipelines/`
+### Knowledge & Search (7)
+`query_knowledge_base`, `index_file`, `index_url`, `index_github`, `scrape_and_index`, `knowledge_stats`, `web_search`
 
-## Task scheduler
+### Security (28)
+`security_scan_system`, `security_scan_network`, `security_process_info`, `security_kill_process`, `security_block_ip`, `security_unblock_ip`, `security_check_logs`, `security_audit_startup`, `security_audit_scheduled_tasks`, `security_audit_usb`, `security_generate_report`, `security_ping_sweep`, `security_scan_ports`, `security_audit_wifi`, `security_lookup_cve`, `security_check_ip`, `security_audit_users`, `security_firewall_rules`, `security_drive_health`, `security_persistence_check`, `security_defender_scan`, `security_hosts_check`, `security_browser_audit`, `security_remove_firewall_rule`, `security_defender_set`, `security_elevate_bot`, `security_set_watch`, `security_list_watches`, `security_remove_watch`
 
-- `schedule_task` with `time` ("2:00 PM") or `delay_minutes` (10)
-- Recurring tasks via `interval_minutes`
+### Network (4)
+`network_dns_lookup`, `network_traceroute`, `network_whois`, `network_bandwidth`
+
+### Productivity (13)
+`pomodoro_start`, `pomodoro_status`, `pomodoro_stats`, `pomodoro_stop`, `habit_add`, `habit_log`, `habit_unlog`, `habit_list`, `habit_stats`, `habit_remove`, `obsidian_template`, `obsidian_recent`, `obsidian_tags`
+
+### Other (7)
+`generate_image`, `image_search`, `spawn_specialist`, `schedule_task`, `create_monitor`, `list_monitors`, `run_pipeline`, `get_youtube_info`, `zip`, `unzip`, `git`, `weather`, `news`, `daily_briefing`, `list_skills`, `call_opencode`, `apply_opencode`, `create_presentation`
+
+## Voice Chat
+
+- **Push-to-talk** — press Alt+V, speak, release, hear response
+- **System tray app** — icon shows idle/recording/processing/speaking states
+- **Google Web Speech STT** — accurate, free, no API key
+- **Edge TTS** — Microsoft Neural voices, configurable speed and voice
+- **Interrupt** — press hotkey during playback to stop and re-record
+- **Restart** — tray menu restarts the server
+- **Settings UI** — Tkinter dialog to edit env vars (API URL, hotkey, voice, speed)
+
+## Security Tools
+
+| Category | Tools |
+|----------|-------|
+| **Scanning** | system scan, network scan, process info, check logs, ping sweep, port scan |
+| **Threat Intel** | CVE lookup, IP check (AbuseIPDB) |
+| **Firewall** | list rules, block IP, unblock IP, remove rule |
+| **Audit** | users, startup programs, scheduled tasks, USB devices, WiFi audit, drive health, persistence check, browser policies |
+| **Defender** | scan (quick/full), enable/disable real-time protection, enable/disable antivirus |
+| **Monitoring** | create watch, list watches, remove watch |
+| **Maintenance** | temp cleanup, disk usage, startup optimize |
+
+## Knowledge Base (RAG)
+
+- **Embedding** via any OpenAI-compatible provider
+- **Vector store** — JSON-based with cosine similarity
+- **Index sources**: files, URLs, GitHub, any scraped page
+- **Query**: returns top-5 chunks with relevance scores
+
+## Task Scheduler
+
+- One-time and recurring tasks
 - Persisted to `agents_workspace/<id>/tasks.json`
-- Daemon ticks every 10s, dispatches to agent, sends response to Telegram chat
+- Daemon ticks every 10s, dispatches to agent, sends to Telegram
 - Commands: `/task list`, `/task remove <id>`
 
-## LLM provider system
+## LLM Provider System
 
-- **Unified client** — OpenAI SDK with configurable `baseUrl` + `apiKey`. Works with any OpenAI-compatible endpoint
-- **Stage-based routing** — `think` stage is the active processing stage (classify/answer removed for cost)
-- **Provider failover** — `fallbacks: [{ provider, model }]` per stage. Tried in order on failure
-- **Tool-unsupported model fallback** — if model rejects tool calls, auto-retries with plain `generate()`
-- **Runtime override** — `/models set think <provider> [model]` switches at runtime without restart
+- **Unified client** — works with any OpenAI-compatible endpoint
+- **Stage-based routing** — think stage with fallback chain
+- **Provider failover** — `fallbacks` tried in order on failure
+- **429 retry** — configurable via `RATE_LIMIT_RETRY_SECONDS` env var
+- **Runtime override** — `/models set think <provider> [model]`
 
-## Web UI dashboard
+## Web UI Dashboard (FastAPI)
 
-- **Auto-starts** on port `18789` (configurable via `API_PORT` env var)
-- **Chat interface** — send messages, see agent responses with tool calls
-- **Session manager** — create, switch, and list sessions
-- **Knowledge viewer** — see indexed documents and knowledge base stats
-- **Pipeline viewer** — see defined pipelines
-- **Status display** — uptime, active session, agent info
+- Auto-starts on port `18789` (configurable via `API_PORT`)
+- Chat interface, session manager, knowledge viewer, pipeline viewer
 
 ### REST API
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/chat` | POST | `{ message, session_id }` → `{ response }` |
-| `/api/sessions` | GET | List sessions |
-| `/api/sessions` | POST | `{ name }` → create/switch |
+| `/api/chat` | POST | `{ message, session_id, voice }` → `{ response }` |
+| `/api/chat/upload` | POST | File upload + message |
+| `/api/sessions` | GET/POST | List/create sessions |
 | `/api/status` | GET | Uptime, agents, session |
 | `/api/knowledge` | GET | Stats + document list |
-| `/api/pipelines` | GET | List pipelines |
-| `/api/pipelines` | POST | Create pipeline |
-| `/api/pipelines/execute` | POST | Execute pipeline |
 
-## Telegram bot
+## Telegram Bot
 
 - Auto-reconnect on polling errors
-- MarkdownV2 with plain-text fallback on parse errors
 - Allowlist auth from `TELEGRAM_ALLOWLIST` (empty = open)
-- Typing indicator, error messages, graceful shutdown
+- Typing indicator, file uploads, voice message transcription
+- TTS mode: `/tts_on` sends responses as voice messages
 
 ### Commands
 
 | Command | Description |
 |---|---|
 | `/help` | All commands |
-| `/models` | Show stage config |
-| `/models set think <provider> [model]` | Runtime provider switch |
-| `/models reset think` | Revert to default |
+| `/tts_on` | Enable voice responses |
+| `/tts_off` | Disable voice responses |
+| `/models` | Show/switch provider config |
 | `/providers` | List endpoints |
-| `/status` | Uptime, agents, target |
+| `/status` | Bot uptime, agents |
 | `/profile` | Extracted user profile |
 | `/reset` | Clear current session |
-| `/session` | Show active session |
-| `/session new <name>` | New session |
-| `/session <name>` | Switch session |
-| `/session list` | All sessions |
+| `/session` | Manage sessions |
 | `/task list` | Scheduled tasks |
-| `/task remove <id>` | Remove task |
+| `/task remove` | Remove task |
 | `/knowledge` | Knowledge base stats |
-| `/knowledge list` | Indexed documents |
-| `/knowledge remove <id>` | Remove document |
-
-## CLI tools
-
-- `pnpm cli onboard` — setup wizard
-- `pnpm cli models` — configure stages, providers, test connectivity. Validates `apiKeyEnv` is an env var name, not a raw key.
-- `pnpm cli agents` — CRUD for agents and SOUL files. Auto-creates agent folder and `SOUL.md`.
-
-## Security boundaries
-
-- All file operations restricted to `agent_sandbox/`
-- Path traversal blocked (`..`)
-- Command whitelist only (ipconfig, systeminfo, netstat, whoami, ping, curl, etc.)
-- Shell chaining (`&&`, `|`, `;`) rejected
-- 15s command timeout, 100KB output limit
-- Backups before destructive file operations
-- Env var reader masks `key`, `token`, `secret` values
+| `/search` | Search conversation history |
+| `/workflows` | Learned workflows |
 
 ## Architecture
 
 ```
-Telegram ─┐    Web UI ───┐
-           ▼             ▼
-    ┌──────────────────────────┐
-    │      Dispatcher          │──── ToolRegistry (20 tools)
-    │  (orchestrator.ts)       │
-    └──────────┬───────────────┘
-               │
-    ┌──────────┴───────────────┐
-    │    Agent (agent.ts)      │
-    │  • think loop (5 iter)   │
-    │  • profile extraction    │
-    │  • context compression   │
-    │  • SOUL personality      │
-    └──────────┬───────────────┘
-               │
-    ┌──────────┴───────────────┐
-    │    UnifiedProvider       │──→ OpenAI-compatible LLM
-    │    (with failover chain) │
-    └──────────────────────────┘
-               │
-    ┌──────────┴─────────────────────────────────────┐
-    │  Storage (agents_workspace/<id>/)                │
-    │  ├── sessions/<id>/history.jsonl                 │
-    │  ├── sessions/<id>/profile.json                  │
-    │  ├── tasks.json                                  │
-    │  └── knowledge/store.json                        │
-    └──────────────────────────────────────────────────┘
+Telegram ─┐    Web UI ───┐    Voice Chat ──┐
+           ▼             ▼                ▼
+    ┌──────────────────────────────────────────┐
+    │              Dispatcher                  │
+    │  (orchestrator.py)                       │
+    └────────────────┬─────────────────────────┘
+                     │
+    ┌────────────────┴─────────────────────────┐
+    │              Agent (agent.py)             │
+    │  • think loop (3 iter)                   │
+    │  • profile extraction                    │
+    │  • context compression                   │
+    │  • SOUL personality                      │
+    │  • 80+ tools                             │
+    └────────────────┬─────────────────────────┘
+                     │
+    ┌────────────────┴─────────────────────────┐
+    │          UnifiedProvider                  │
+    │  (OpenAI-compatible, failover chain)     │
+    └──────────────────────────────────────────┘
 ```
 
-Processing flow per message:
-1. Message arrives (Telegram or Web UI) → `dispatcher.dispatch(id, query, 0, chatId)`
-2. Agent loads SOUL + history + profile from disk. If the stored system prompt is stale (SOUL.md changed since last session), `refreshSystemPrompt()` replaces it immediately.
-3. **Think** loop (up to 5 iterations):
-   - LLM receives full history + all tool definitions
-   - Tool call → execute, push result, loop
-   - Text response → push to history, exit
-4. **Response is returned** to sender immediately
-5. **Fire-and-forget** (deferred via `setImmediate`, never blocks): profile extraction (every 3rd msg) + context compression (history > 60 msgs)
-6. Agent eviction timer resets to 5 min
+## Processing Flow
 
-## Known gaps
+1. Message arrives (Telegram / Web UI / Voice Chat)
+2. Agent loads SOUL + history + profile
+3. **Think** loop (up to 3 iterations):
+   - LLM receives history + tools
+   - Tool call → execute → loop
+   - Text response → return
+4. Background: profile extraction + compression
 
-| Feature | Notes |
-|---|---|
-| Multi-platform (Slack, Discord) | Telegram + Web UI only |
-| Streaming responses | Would require changing `process()` → `string` contract |
-| Tests | `pnpm test` returns placeholder |
-| Monitoring | No structured logging or metrics |
-| Docker deployment | Not yet — planned next |
-| SOUL auto-evolution | Disabled temporarily — the core system prompt quality was unstable. Will be re-enabled after fundamentals are hardened. |
+## CLI Tools
+
+- `kinetic` — run bot + API + scheduler
+- `kinetic-cli onboard` — setup wizard
+- `kinetic-cli models` — configure providers/stages
+- `kinetic-cli skills` — manage skill packs
