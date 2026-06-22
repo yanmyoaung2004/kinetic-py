@@ -2,6 +2,28 @@
 
 Autonomous AI assistant with Telegram bot, voice chat, 35+ security/network/maintenance tools, RAG knowledge base, multi-agent pipelines, and a web dashboard.
 
+## Docker Deployment
+
+```bash
+# Build and run
+docker compose up -d
+
+# Check logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+Or build manually:
+
+```bash
+docker build -t kinetic .
+docker run -d --name kinetic --env-file .env -p 18789:18789 -v ./config:/app/config -v ./agents_workspace:/app/agents_workspace -v ./agent_sandbox:/app/agent_sandbox kinetic
+```
+
+Note: Voice chat features are Windows-only (PyAudio, keyboard hooks) and don't run in Docker. The Docker image runs the bot server (Telegram + API + scheduler).
+
 ## Quick Start
 
 ```bash

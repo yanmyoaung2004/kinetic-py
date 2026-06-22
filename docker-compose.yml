@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  kinetic:
+    build: .
+    container_name: kinetic
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-18789}:18789"
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config
+      - ./agents_workspace:/app/agents_workspace
+      - ./agent_sandbox:/app/agent_sandbox

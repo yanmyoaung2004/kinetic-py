@@ -1,0 +1,14 @@
+.venv/
+.venv_windows/
+__pycache__/
+*.pyc
+.env
+.git/
+agents_workspace/
+agent_sandbox/
+docs/
+node_modules/
+*.md
+test_*.py
+voice_chat.py
+voice.bat
