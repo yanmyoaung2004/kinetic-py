@@ -107,14 +107,24 @@ async def _speak(text: str) -> None:
         return
 
     import re as _re
-    # Strip emotional markers *laughs* -> laughs, **bold** -> bold
+    # Strip any remaining emotional markers
     text = _re.sub(r"\*{1,2}(.*?)\*{1,2}", r"\1", text)
-    # Strip remaining asterisks
     text = text.replace("*", "")
+
+    # Wrap in SSML with cheerful style (escape XML chars)
+    safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    ssml = (
+        f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"'
+        f' xmlns:mstts="http://www.w3.org/2001/mstts">'
+        f'<voice name="{VOICE}">'
+        f'<mstts:express-as style="cheerful">'
+        f'{safe}'
+        f'</mstts:express-as></voice></speak>'
+    )
 
     # Collect MP3 audio
     audio = bytearray()
-    comm = edge_tts.Communicate(text, VOICE, rate=SPEED)
+    comm = edge_tts.Communicate(ssml, VOICE, rate=SPEED)
     async for chunk in comm.stream():
         if chunk["type"] == "audio":
             audio.extend(chunk["data"])
