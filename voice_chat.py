@@ -1,9 +1,13 @@
-"""Voice chat — push-to-talk with Windows built-in STT, bot API, and edge-tts.
-Press Ctrl+Shift+V → speak → release → hear the bot."""
+"""Voice chat — system tray app with push-to-talk.
+Press Ctrl+Shift+V → speak → release → hear the bot.
+System tray icon shows: idle, recording, processing, speaking."""
 
 import asyncio
+import ctypes
 import os
+import queue
 import tempfile
+import threading
 import time
 import wave
 from pathlib import Path
@@ -12,11 +16,13 @@ import edge_tts
 import httpx
 import keyboard
 import pyaudio
+import pystray
 import speech_recognition as sr
+from PIL import Image, ImageDraw
 
 # ── Config ─────────────────────────────────────────────
-API_URL = "http://localhost:18789/api/chat"
-PUSH_TO_TALK_KEY = "ctrl+shift+v"
+API_URL = os.environ.get("API_URL", "http://localhost:18789/api/chat")
+PUSH_TO_TALK_KEY = os.environ.get("PTT_KEY", "ctrl+shift+v")
 VOICE = os.environ.get("TTS_VOICE", "en-GB-RyanNeural")
 SPEED = os.environ.get("TTS_SPEED", "+20%")
 
@@ -24,43 +30,84 @@ RECORD_FORMAT = pyaudio.paInt16
 RECORD_CHANNELS = 1
 RECORD_RATE = 16000
 RECORD_CHUNK = 1024
+HIDE_CONSOLE = os.environ.get("HIDE_CONSOLE", "1") == "1"
+
+# ── Status ─────────────────────────────────────────────
+IDLE = 0
+RECORDING = 1
+PROCESSING = 2
+SPEAKING = 3
+
+_status_names = {IDLE: "Idle", RECORDING: "Recording", PROCESSING: "Processing", SPEAKING: "Speaking"}
+_status_colors = {IDLE: "#ffffff", RECORDING: "#ff4444", PROCESSING: "#ffaa00", SPEAKING: "#44ff44"}
+_status_queue: queue.Queue[int] = queue.Queue()
+_tray_icon: pystray.Icon | None = None
+
+
+def _make_icon(color_hex: str) -> Image.Image:
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    r, g, b = int(color_hex[1:3], 16), int(color_hex[3:5], 16), int(color_hex[5:7], 16)
+    draw.ellipse([4, 4, 60, 60], fill=(r, g, b, 255))
+    return img
+
+
+def _set_status(s: int) -> None:
+    """Update tray icon from any thread."""
+    _status_queue.put(s)
+
+
+def _run_tray() -> None:
+    global _tray_icon
+    icon_img = _make_icon(_status_colors[IDLE])
+    menu = pystray.Menu(pystray.MenuItem("Quit", _on_quit))
+    icon = pystray.Icon("kinetic_voice", icon_img, "K.I.N.E.T.I.C. Voice", menu)
+    _tray_icon = icon
+
+    # Poll for status updates
+    def _poll():
+        while True:
+            try:
+                s = _status_queue.get(timeout=0.2)
+                icon.icon = _make_icon(_status_colors.get(s, _status_colors[IDLE]))
+                icon.title = f"K.I.N.E.T.I.C. Voice — {_status_names.get(s, '?')}"
+            except queue.Empty:
+                pass
+            if not icon.visible:
+                break
+
+    threading.Thread(target=_poll, daemon=True).start()
+    icon.run()
+
+
+def _on_quit() -> None:
+    os._exit(0)
+
 
 # ── Audio helpers ──────────────────────────────────────
 
 def _record_to_wav() -> Path | None:
-    """Record mic while hotkey is held. Returns path to WAV file or None."""
     p = pyaudio.PyAudio()
     stream = p.open(
-        format=RECORD_FORMAT,
-        channels=RECORD_CHANNELS,
-        rate=RECORD_RATE,
-        input=True,
-        frames_per_buffer=RECORD_CHUNK,
+        format=RECORD_FORMAT, channels=RECORD_CHANNELS, rate=RECORD_RATE,
+        input=True, frames_per_buffer=RECORD_CHUNK,
     )
-
     sample_width = p.get_sample_size(RECORD_FORMAT)
 
-    print(f"\n[MIC] Press {PUSH_TO_TALK_KEY} to speak...", end="", flush=True)
     keyboard.wait(PUSH_TO_TALK_KEY)
+    _set_status(RECORDING)
 
     frames: list[bytes] = []
-
-    print("\r[MIC] Recording... (release to stop)  ", flush=True)
-
     while keyboard.is_pressed(PUSH_TO_TALK_KEY):
-        data = stream.read(RECORD_CHUNK, exception_on_overflow=False)
-        frames.append(data)
+        frames.append(stream.read(RECORD_CHUNK, exception_on_overflow=False))
 
     stream.stop_stream()
     stream.close()
     p.terminate()
 
     if len(frames) < 5:
-        print("   (too short, ignored)")
+        _set_status(IDLE)
         return None
-
-    dur = len(frames) * RECORD_CHUNK / RECORD_RATE
-    print(f"   Recorded {dur:.1f}s of audio")
 
     path = Path(tempfile.gettempdir()) / f"voice_{int(time.time())}.wav"
     with wave.open(str(path), "wb") as wf:
@@ -73,55 +120,42 @@ def _record_to_wav() -> Path | None:
 
 
 async def _stt(wav_path: Path) -> str:
-    """Speech-to-text via Google Web Speech API (free, no key, needs internet)."""
     try:
         r = sr.Recognizer()
         with sr.AudioFile(str(wav_path)) as source:
             audio = r.record(source)
-        text = await asyncio.get_event_loop().run_in_executor(
-            None, r.recognize_google, audio
-        )
+        text = await asyncio.get_event_loop().run_in_executor(None, r.recognize_google, audio)
         return text
     except sr.UnknownValueError:
         return ""
-    except sr.RequestError as e:
-        print(f"   STT error: {e}")
-        return ""
     except Exception as e:
-        print(f"   STT error: {e}")
+        print(f"STT error: {e}")
         return ""
 
 
 async def _query_bot(text: str) -> str:
-    """Send text to bot API, get response."""
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(API_URL, json={"message": text, "voice": True})
         resp.raise_for_status()
-        data = resp.json()
-        return data.get("response", "")
+        return resp.json().get("response", "")
 
 
 async def _speak(text: str) -> None:
-    """Text-to-speech via edge-tts, play through speakers."""
     if not text:
         return
 
     import re as _re
-    # Strip any remaining emotional markers
     text = _re.sub(r"\*{1,2}(.*?)\*{1,2}", r"\1", text)
     text = text.replace("*", "")
 
-    # Collect MP3 audio
     audio = bytearray()
     comm = edge_tts.Communicate(text, VOICE, rate=SPEED)
     async for chunk in comm.stream():
         if chunk["type"] == "audio":
             audio.extend(chunk["data"])
-
     if not audio:
         return
 
-    # Decode MP3 to PCM via ffmpeg
     tmp = Path(tempfile.gettempdir())
     mp3 = tmp / "vout.mp3"
     raw = tmp / "vout.raw"
@@ -138,54 +172,54 @@ async def _speak(text: str) -> None:
     pcm = raw.read_bytes()
     raw.unlink(missing_ok=True)
 
-    # Play
     p = pyaudio.PyAudio()
     stream = p.open(format=pyaudio.paInt16, channels=1, rate=24000, output=True)
-    chunk = 4096
-    for i in range(0, len(pcm), chunk):
-        stream.write(pcm[i:i + chunk])
+    for i in range(0, len(pcm), 4096):
+        stream.write(pcm[i:i + 4096])
     stream.stop_stream()
     stream.close()
     p.terminate()
 
 
-# ── Main ───────────────────────────────────────────────
+# ── Main loop ──────────────────────────────────────────
 
-async def main():
-    print("=" * 50)
-    print("  K.I.N.E.T.I.C. Voice Chat")
-    print("=" * 50)
-    print(f"  Hotkey: {PUSH_TO_TALK_KEY}")
-    print(f"  Voice:  {VOICE}")
-    print(f"  Speed:  {SPEED}")
-    print(f"  API:    {API_URL}")
-    print("=" * 50)
-    print()
-
+async def _voice_loop() -> None:
     while True:
-        wav = _record_to_wav()
+        wav = await asyncio.get_event_loop().run_in_executor(None, _record_to_wav)
         if wav is None:
+            _set_status(IDLE)
             continue
 
-        print("   Transcribing...", end=" ", flush=True)
+        _set_status(PROCESSING)
         text = await _stt(wav)
         wav.unlink(missing_ok=True)
 
         if not text:
-            print("(could not recognize)")
+            _set_status(IDLE)
             continue
 
-        print(f"\n   You: {text}")
-
-        print("   Thinking...", end=" ", flush=True)
         reply = await _query_bot(text)
 
-        print(f"\n   Bot: {reply[:150]}..." if len(reply) > 150 else f"\n   Bot: {reply}")
+        if not reply:
+            _set_status(IDLE)
+            continue
 
-        print("   Speaking...", flush=True)
+        _set_status(SPEAKING)
         await _speak(reply)
-        print("   Done.\n")
+        _set_status(IDLE)
+
+
+def main() -> None:
+    if HIDE_CONSOLE:
+        ctypes.windll.user32.ShowWindow(
+            ctypes.windll.kernel32.GetConsoleWindow(), 0
+        )
+
+    thread = threading.Thread(target=_run_tray, daemon=True)
+    thread.start()
+
+    asyncio.run(_voice_loop())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
