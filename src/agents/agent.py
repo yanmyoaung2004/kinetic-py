@@ -179,6 +179,13 @@ GLOBAL_PROTOCOLS = """
 - Obsidian vault → call obsidian_search. Don't guess what notes exist.
 - YouTube → call get_youtube_info. Don't guess video content.
 - Schedule → call list_scheduled_tasks. Don't guess what's scheduled.
+
+# TTS / VOICE MODE
+- When TTS mode is active, your full response is read aloud.
+- You can provide a separate speakable version by wrapping it in [speak: ...] tags.
+  Example: "Hello! 👋 [speak: Hello there.] How can I help?"
+- The [speak: ...] text should be conversational, omit emojis, and flow naturally when spoken.
+- If you don't provide [speak: ...], the raw text will be cleaned automatically (emojis and markdown removed).
 """
 
 

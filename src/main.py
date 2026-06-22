@@ -574,11 +574,46 @@ class KinetiCBot:
             _sent_content_hashes.add(content_hash)
 
     async def _send_tts(self, msg: Any, text: str) -> None:
+        import re as _re
+
         import edge_tts as _tts
+
+        # Check for [speak: ...] tag — agent's curated speakable version
+        m = _re.search(r"\[speak:(.*?)\]", text, _re.DOTALL)
+        if m:
+            speak_text = m.group(1).strip()
+        else:
+            # Fallback: clean the text for speech
+            speak_text = text
+            # Remove [speak:...] tags entirely
+            speak_text = _re.sub(r"\[speak:.*?\]", "", speak_text, flags=_re.DOTALL)
+            # Remove markdown formatting
+            speak_text = _re.sub(r"\*{1,2}(.*?)\*{1,2}", r"\1", speak_text)
+            speak_text = _re.sub(r"`{1,3}.*?`{1,3}", "", speak_text, flags=_re.DOTALL)
+            # Remove emojis (common ranges)
+            emoji_pat = (
+                r"[\U0001F600-\U0001FAFF"
+                r"\U00002702-\U000027B0"
+                r"\U000024C2-\U0001F251"
+                r"\U0001F300-\U0001F5FF"
+                r"\U0001F680-\U0001F6FF"
+                r"\U0001F1E0-\U0001F1FF"
+                r"]"
+            )
+            speak_text = _re.sub(emoji_pat, "", speak_text)
+            # Remove multiple newlines/spaces
+            speak_text = _re.sub(r"\n{3,}", "\n\n", speak_text)
+            speak_text = _re.sub(r" {2,}", " ", speak_text).strip()
+            # Truncate if too long (edge-tts has limits)
+            if len(speak_text) > 2000:
+                speak_text = speak_text[:2000] + "..."
+
+        if not speak_text:
+            return
 
         try:
             audio_data = bytearray()
-            comm = _tts.Communicate(text, "en-GB-RyanNeural")
+            comm = _tts.Communicate(speak_text, "en-GB-RyanNeural")
             async for chunk in comm.stream():
                 if chunk["type"] == "audio":
                     audio_data.extend(chunk["data"])
