@@ -95,6 +95,8 @@ COMMANDS_HELP = """
 /perfect — Learn from the last successful workflow
 /forget <trigger> — Forget a learned workflow
 /workflows — Show all learned workflows
+/tts_on — Enable voice responses (TTS mode)
+/tts_off — Disable voice responses (text only)
 """
 
 
