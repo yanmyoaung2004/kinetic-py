@@ -754,6 +754,8 @@ class KinetiCBot:
                             "perfect",
                             "forget",
                             "workflows",
+                            "tts_on",
+                            "tts_off",
                         ],
                         self.handle_command,
                     )
