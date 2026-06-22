@@ -37,6 +37,11 @@ def create_app(dispatcher: Any, agent_target: str) -> FastAPI:
         body = await request.json()
         message = body.get("message", "")
         session_id = body.get("session_id", "default")
+        if body.get("voice"):
+            message = (
+                "[VOICE MODE] Respond naturally — use emotions like *laughs*, *sighs*, *whispers*. "
+                "No emojis, no markdown formatting. Keep it conversational.\n\n"
+            ) + message
         if session_id != dispatcher.get_active_session():
             dispatcher.set_session(session_id)
         response = await dispatcher.dispatch(agent_target, message, 0)

@@ -95,7 +95,7 @@ async def _stt(wav_path: Path) -> str:
 async def _query_bot(text: str) -> str:
     """Send text to bot API, get response."""
     async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(API_URL, json={"message": text})
+        resp = await client.post(API_URL, json={"message": text, "voice": True})
         resp.raise_for_status()
         data = resp.json()
         return data.get("response", "")
