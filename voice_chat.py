@@ -22,7 +22,19 @@ from PIL import Image, ImageDraw
 
 # ── Config ─────────────────────────────────────────────
 API_URL = os.environ.get("API_URL", "http://localhost:18789/api/chat")
-PUSH_TO_TALK_KEY = os.environ.get("PTT_KEY", "ctrl+shift+v")
+PUSH_TO_TALK_KEY = os.environ.get("PTT_KEY", "alt+v")
+# ── Usage ──
+# Change hotkey by setting PTT_KEY env var, e.g.:
+#   PTT_KEY=ctrl+shift+v   (default on many systems)
+#   PTT_KEY=ctrl+`         (tilde key)
+#   PTT_KEY=ctrl+alt+v     (safe alternative)
+#   PTT_KEY=f1             (function key)
+# ───────────
+
+# Show active hotkey (useful for debugging when console is hidden)
+_print_debug = os.environ.get("HIDE_CONSOLE", "1").lower() not in ("1", "true", "yes")
+if _print_debug:
+    print(f"Hotkey: {PUSH_TO_TALK_KEY}")
 VOICE = os.environ.get("TTS_VOICE", "en-GB-RyanNeural")
 SPEED = os.environ.get("TTS_SPEED", "+20%")
 
