@@ -159,13 +159,17 @@ def _on_quit() -> None:
 # ── Audio helpers ──────────────────────────────────────
 
 def _record_to_wav(p: pyaudio.PyAudio) -> Path | None:
+    import time as _t
+
     stream = p.open(
         format=RECORD_FORMAT, channels=RECORD_CHANNELS, rate=RECORD_RATE,
         input=True, frames_per_buffer=RECORD_CHUNK,
     )
     sample_width = p.get_sample_size(RECORD_FORMAT)
 
-    keyboard.wait(PUSH_TO_TALK_KEY)
+    # Poll for hotkey press
+    while not keyboard.is_pressed(PUSH_TO_TALK_KEY):
+        _t.sleep(0.05)
     _set_status(RECORDING)
 
     frames: list[bytes] = []
