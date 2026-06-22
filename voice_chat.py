@@ -113,8 +113,7 @@ def _on_quit() -> None:
 
 # ── Audio helpers ──────────────────────────────────────
 
-def _record_to_wav() -> Path | None:
-    p = pyaudio.PyAudio()
+def _record_to_wav(p: pyaudio.PyAudio) -> Path | None:
     stream = p.open(
         format=RECORD_FORMAT, channels=RECORD_CHANNELS, rate=RECORD_RATE,
         input=True, frames_per_buffer=RECORD_CHUNK,
@@ -130,7 +129,6 @@ def _record_to_wav() -> Path | None:
 
     stream.stop_stream()
     stream.close()
-    p.terminate()
 
     if len(frames) < 5:
         _set_status(IDLE)
@@ -211,29 +209,35 @@ async def _speak(text: str) -> None:
 # ── Main loop ──────────────────────────────────────────
 
 async def _voice_loop() -> None:
-    while True:
-        wav = await asyncio.get_event_loop().run_in_executor(None, _record_to_wav)
-        if wav is None:
+    p = pyaudio.PyAudio()
+    try:
+        while True:
+            wav = await asyncio.get_event_loop().run_in_executor(
+                None, _record_to_wav, p
+            )
+            if wav is None:
+                _set_status(IDLE)
+                continue
+
+            _set_status(PROCESSING)
+            text = await _stt(wav)
+            wav.unlink(missing_ok=True)
+
+            if not text:
+                _set_status(IDLE)
+                continue
+
+            reply = await _query_bot(text)
+
+            if not reply:
+                _set_status(IDLE)
+                continue
+
+            _set_status(SPEAKING)
+            await _speak(reply)
             _set_status(IDLE)
-            continue
-
-        _set_status(PROCESSING)
-        text = await _stt(wav)
-        wav.unlink(missing_ok=True)
-
-        if not text:
-            _set_status(IDLE)
-            continue
-
-        reply = await _query_bot(text)
-
-        if not reply:
-            _set_status(IDLE)
-            continue
-
-        _set_status(SPEAKING)
-        await _speak(reply)
-        _set_status(IDLE)
+    finally:
+        p.terminate()
 
 
 def main() -> None:
