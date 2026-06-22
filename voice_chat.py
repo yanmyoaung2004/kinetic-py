@@ -91,46 +91,33 @@ def _on_quit() -> None:
 
 def _on_settings() -> None:
     import tkinter as tk
-    from tkinter import ttk
+    from tkinter import ttk, scrolledtext
 
-    fields = [
-        ("API URL", "API_URL", "http://localhost:18789/api/chat"),
-        ("Hotkey", "PTT_KEY", "alt+v"),
-        ("TTS Voice", "TTS_VOICE", "en-GB-RyanNeural"),
-        ("TTS Speed", "TTS_SPEED", "+20%"),
-        ("Hide Console", "HIDE_CONSOLE", "1"),
-    ]
+    env_path = Path(__file__).parent / ".env"
+    content = env_path.read_text() if env_path.exists() else ""
+
     root = tk.Tk()
-    root.title("K.I.N.E.T.I.C. Settings")
-    root.resizable(False, False)
-    entries = {}
-    for i, (label, key, default) in enumerate(fields):
-        ttk.Label(root, text=label).grid(row=i, column=0, padx=8, pady=4, sticky="w")
-        e = ttk.Entry(root, width=40)
-        e.insert(0, os.environ.get(key, default))
-        e.grid(row=i, column=1, padx=8, pady=4)
-        entries[key] = e
+    root.title("K.I.N.E.T.I.C. Settings — Edit .env")
+    root.geometry("700x500")
+
+    text = scrolledtext.ScrolledText(root, font=("Consolas", 10), wrap=tk.NONE)
+    text.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+    text.insert("1.0", content)
 
     def _save():
-        env_path = Path(__file__).parent / ".env"
-        existing = {}
-        if env_path.exists():
-            for line in env_path.read_text().splitlines():
-                if "=" in line and not line.startswith("#"):
-                    k, v = line.split("=", 1)
-                    existing[k.strip()] = v.strip()
-        for k, e in entries.items():
-            existing[k] = e.get().strip()
-        with open(env_path, "w") as f:
-            for k, v in existing.items():
-                f.write(f"{k}={v}\n")
-        for k, e in entries.items():
-            os.environ[k] = e.get().strip()
+        env_path.write_text(text.get("1.0", tk.END).strip() + "\n")
+        # Reload into current env
+        for line in text.get("1.0", tk.END).splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, v = line.split("=", 1)
+                os.environ[k.strip()] = v.strip()
         root.destroy()
 
-    ttk.Button(root, text="Save", command=_save).grid(
-        row=len(fields), column=0, columnspan=2, pady=10
-    )
+    buttons = ttk.Frame(root)
+    buttons.pack(fill=tk.X, padx=8, pady=8)
+    ttk.Button(buttons, text="Save & Close", command=_save).pack(side=tk.RIGHT, padx=4)
+    ttk.Button(buttons, text="Cancel", command=root.destroy).pack(side=tk.RIGHT, padx=4)
+
     root.mainloop()
 
 
