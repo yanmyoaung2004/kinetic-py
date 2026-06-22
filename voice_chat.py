@@ -112,7 +112,7 @@ async def _speak(text: str) -> None:
     text = text.replace("*", "")
 
     # Wrap in SSML with cheerful style (escape XML chars)
-    safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&apos;").replace('"', "&quot;")
     ssml = (
         f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"'
         f' xmlns:mstts="http://www.w3.org/2001/mstts">'
@@ -121,6 +121,8 @@ async def _speak(text: str) -> None:
         f'{safe}'
         f'</mstts:express-as></voice></speak>'
     )
+
+    print(f"   [SSML: {ssml[:120]}...]")
 
     # Collect MP3 audio
     audio = bytearray()
