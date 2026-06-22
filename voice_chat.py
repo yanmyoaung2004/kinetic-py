@@ -23,7 +23,6 @@ RECORD_FORMAT = pyaudio.paInt16
 RECORD_CHANNELS = 1
 RECORD_RATE = 16000
 RECORD_CHUNK = 1024
-SILENCE_TIMEOUT = 2.0  # seconds of silence before auto-stop
 
 # ── Audio helpers ──────────────────────────────────────
 
@@ -38,58 +37,49 @@ def _record_to_wav() -> Path | None:
         frames_per_buffer=RECORD_CHUNK,
     )
 
-    print(f"\n🎤 Press {PUSH_TO_TALK_KEY} to speak...", end="", flush=True)
+    sample_width = p.get_sample_size(RECORD_FORMAT)
+
+    print(f"\n[MIC] Press {PUSH_TO_TALK_KEY} to speak...", end="", flush=True)
     keyboard.wait(PUSH_TO_TALK_KEY)
 
     frames: list[bytes] = []
-    silence_start: float | None = None
 
-    print("\r🎤 Recording... (release to stop)  ", flush=True)
+    print("\r[MIC] Recording... (release to stop)  ", flush=True)
 
-    while True:
+    while keyboard.is_pressed(PUSH_TO_TALK_KEY):
         data = stream.read(RECORD_CHUNK, exception_on_overflow=False)
         frames.append(data)
-
-        # Auto-stop on silence
-        if max(data) < 10:
-            if silence_start is None:
-                silence_start = time.time()
-            elif time.time() - silence_start > SILENCE_TIMEOUT:
-                break
-        else:
-            silence_start = None
-
-        if not keyboard.is_pressed(PUSH_TO_TALK_KEY) and len(frames) > 10:
-            break
 
     stream.stop_stream()
     stream.close()
     p.terminate()
 
-    if len(frames) < 10:
+    if len(frames) < 5:
         print("   (too short, ignored)")
         return None
+
+    dur = len(frames) * RECORD_CHUNK / RECORD_RATE
+    print(f"   Recorded {dur:.1f}s of audio")
 
     path = Path(tempfile.gettempdir()) / f"voice_{int(time.time())}.wav"
     with wave.open(str(path), "wb") as wf:
         wf.setnchannels(RECORD_CHANNELS)
-        wf.setsampwidth(pyaudio.PyAudio().get_sample_size(RECORD_FORMAT))
+        wf.setsampwidth(sample_width)
         wf.setframerate(RECORD_RATE)
         wf.writeframes(b"".join(frames))
 
-    dur = len(frames) * RECORD_CHUNK / RECORD_RATE / 1024
-    print(f"   Recorded {len(frames)} chunks ({dur:.1f}s)")
     return path
 
 
 async def _stt(wav_path: Path) -> str:
     """Speech-to-text via Windows built-in System.Speech (PowerShell)."""
     ps = (
-        f'Add-Type -AssemblyName System.Speech;'
+        'Add-Type -AssemblyName System.Speech;'
         f'$e = New-Object System.Speech.Recognition.SpeechRecognitionEngine;'
         f'$e.SetInputToWaveFile("{wav_path}");'
-        f'$r = $e.Recognize();'
-        f'if ($r) {{ Write-Output $r.Text }}'
+        '$e.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar));'
+        '$r = $e.Recognize();'
+        'if ($r) { Write-Output $r.Text }'
     )
     proc = await asyncio.create_subprocess_exec(
         "powershell", "-NoProfile", "-Command", ps,
