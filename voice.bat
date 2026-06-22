@@ -4,8 +4,8 @@ set "VIRTUAL_ENV=%~dp0.venv"
 set "PATH=%~dp0.venv\Scripts;%PATH%"
 cd /d "%~dp0"
 
-:: Start kinetic silently
-start "KINETIC" cmd /c "set HIDE_CONSOLE=1 && %~dp0.venv\Scripts\kinetic.exe"
+:: Start kinetic silently (no console window at all)
+start /B "" powershell -WindowStyle Hidden -Command "%~dp0.venv\Scripts\kinetic.exe"
 
 :: Wait for API to be ready
 echo Waiting for API...
