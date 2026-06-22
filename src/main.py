@@ -514,20 +514,22 @@ class KinetiCBot:
 
         assert msg.chat is not None
 
-        # Streamed message: send initial placeholder, update as tokens arrive
-        stream_msg = await msg.reply_text("...", parse_mode="HTML")
+        tts_mode = chat_id in _tts_enabled_chats
+
+        if not tts_mode:
+            stream_msg = await msg.reply_text("...", parse_mode="HTML")
         accumulated = ""
         last_edit = 0.0
 
         def on_token(token: str) -> None:
             nonlocal accumulated, last_edit
             accumulated += token
+            if tts_mode:
+                return
             now_t = __import__("time").time()
-            # Throttle edits to once per 0.8 seconds
             if now_t - last_edit > 0.8:
                 last_edit = now_t
                 safe_part = _convert_markdown(accumulated)
-                # Don't edit if too long (Telegram has 4096 limit for edits too)
                 if len(safe_part) < 3500:
                     try:
                         asyncio.create_task(stream_msg.edit_text(safe_part, parse_mode="HTML"))
@@ -540,12 +542,12 @@ class KinetiCBot:
         typing = asyncio.create_task(_typing_indicator(msg.chat, task))
         try:
             response = await task
-            # Send the final complete response
-            await stream_msg.delete()
-            safe = _convert_markdown(response or "(no response)")
-            await _send_long_message(msg, safe)
+            if not tts_mode:
+                await stream_msg.delete()
+                safe = _convert_markdown(response or "(no response)")
+                await _send_long_message(msg, safe)
             await self._send_pending_files(chat_id, update)
-            if chat_id in _tts_enabled_chats and response:
+            if tts_mode and response:
                 await self._send_tts(msg, response)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
@@ -711,12 +713,14 @@ class KinetiCBot:
             task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
             response = await task
-            safe = _convert_markdown(response)
-            await _send_long_message(msg, safe)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
-            if chat_id in _tts_enabled_chats and response:
-                await self._send_tts(msg, response)
+            if chat_id in _tts_enabled_chats:
+                if response:
+                    await self._send_tts(msg, response)
+            else:
+                safe = _convert_markdown(response)
+                await _send_long_message(msg, safe)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
 
@@ -751,12 +755,14 @@ class KinetiCBot:
             task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
             response = await task
-            safe = _convert_markdown(response)
-            await _send_long_message(msg, safe)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
-            if chat_id in _tts_enabled_chats and response:
-                await self._send_tts(msg, response)
+            if chat_id in _tts_enabled_chats:
+                if response:
+                    await self._send_tts(msg, response)
+            else:
+                safe = _convert_markdown(response)
+                await _send_long_message(msg, safe)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
 
