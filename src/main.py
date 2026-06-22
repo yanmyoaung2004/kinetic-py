@@ -16,10 +16,29 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from src.agents.orchestrator import KinetiCDispatcher
 from src.agents.tools.send_file_tool import get_pending_files
+from src.agents.tools.tts_tool import get_pending_audio
 from src.config.loader import load_model_config, validate_endpoints
 from src.utils.file_reader import get_type_label, read_file
 
 _sent_content_hashes: set[int] = set()
+_tts_enabled_chats: set[int] = set()
+_TTS_STATE_PATH = Path("agents_workspace") / "tts_state.json"
+
+
+def _load_tts_state() -> set[int]:
+    if _TTS_STATE_PATH.exists():
+        import json as _j
+        return set(_j.loads(_TTS_STATE_PATH.read_text("utf-8")))
+    return set()
+
+
+def _save_tts_state() -> None:
+    import json as _j
+    _TTS_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _TTS_STATE_PATH.write_text(_j.dumps(list(_tts_enabled_chats)))
+
+
+_tts_enabled_chats.update(_load_tts_state())
 
 dotenv.load_dotenv()
 
@@ -233,6 +252,8 @@ class KinetiCBot:
             await msg.reply_text(COMMANDS_HELP)
             return
 
+        chat_id = msg.chat_id or 0
+
         if cmd == "/models" and len(parts) >= 4 and parts[1] == "set" and parts[2] == "think":
             provider = parts[3]
             model = " ".join(parts[4:]) if len(parts) > 4 else None
@@ -284,6 +305,18 @@ class KinetiCBot:
                 await msg.reply_text(f"Known facts:\n{facts}\n\nPreferences: {prefs}")
             else:
                 await msg.reply_text("No profile extracted yet. Send me a few messages and I'll learn about you.")
+            return
+
+        if cmd == "/tts_on":
+            _tts_enabled_chats.add(chat_id)
+            _save_tts_state()
+            await msg.reply_text("TTS mode ON. I'll respond with voice messages.")
+            return
+
+        if cmd == "/tts_off":
+            _tts_enabled_chats.discard(chat_id)
+            _save_tts_state()
+            await msg.reply_text("TTS mode OFF. Text responses only.")
             return
 
         if cmd == "/reset":
@@ -510,6 +543,8 @@ class KinetiCBot:
             safe = _convert_markdown(response or "(no response)")
             await _send_long_message(msg, safe)
             await self._send_pending_files(chat_id, update)
+            if chat_id in _tts_enabled_chats and response:
+                await self._send_tts(msg, response)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
         finally:
@@ -517,11 +552,13 @@ class KinetiCBot:
 
     async def _send_pending_files(self, chat_id: int, update: Update) -> None:
         files = get_pending_files(chat_id)
+        audio_files = get_pending_audio(chat_id)
+        all_files = files + audio_files
         msg = update.message
         if msg is None:
             return
         assert msg.chat is not None
-        for f in files:
+        for f in all_files:
             content = f["content"]
             if isinstance(content, str):
                 content = content.encode("utf-8")
@@ -533,6 +570,22 @@ class KinetiCBot:
 
             await msg.reply_document(document=InputFile(content, filename=f["filename"]))
             _sent_content_hashes.add(content_hash)
+
+    async def _send_tts(self, msg: Any, text: str) -> None:
+        import edge_tts as _tts
+
+        try:
+            audio_data = bytearray()
+            comm = _tts.Communicate(text, "en-GB-RyanNeural")
+            async for chunk in comm.stream():
+                if chunk["type"] == "audio":
+                    audio_data.extend(chunk["data"])
+            if audio_data:
+                from telegram import InputFile
+                await msg.chat.send_action("upload_voice")
+                await msg.reply_audio(audio=InputFile(bytes(audio_data), filename="response.mp3"))
+        except Exception:
+            pass
 
     async def handle_file(self, update: Update, context: Any = None) -> None:
         msg = update.message
@@ -606,6 +659,8 @@ class KinetiCBot:
                         await _send_long_message(msg, safe)
                         typing.cancel()
                     await self._send_pending_files(chat_id, update)
+                    if chat_id in _tts_enabled_chats and response:
+                        await self._send_tts(msg, response)
                     return
                 else:
                     info = f"{label}: {result['name']} ({result.get('size', 0)} bytes)"
@@ -623,6 +678,8 @@ class KinetiCBot:
             await _send_long_message(msg, safe)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
+            if chat_id in _tts_enabled_chats and response:
+                await self._send_tts(msg, response)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
 
@@ -661,6 +718,8 @@ class KinetiCBot:
             await _send_long_message(msg, safe)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
+            if chat_id in _tts_enabled_chats and response:
+                await self._send_tts(msg, response)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
 

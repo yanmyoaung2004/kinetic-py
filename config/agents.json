@@ -107,6 +107,7 @@
         "network_traceroute",
         "network_whois",
         "network_bandwidth",
+        "tts_speak",
         "send_message"
       ]
     }

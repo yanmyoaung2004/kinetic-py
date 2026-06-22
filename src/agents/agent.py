@@ -92,6 +92,7 @@ from src.agents.tools.system_tools import (
     create_get_system_info_tool,
     create_read_env_var_tool,
 )
+from src.agents.tools.tts_tool import create_tts_speak_tool
 from src.agents.tools.weather_tool import create_weather_tool
 from src.agents.tools.youtube_tool import create_youtube_info_tool
 from src.agents.tools.zip_tool import create_unzip_tool, create_zip_tool
@@ -382,6 +383,8 @@ class AgentInstance(IAgent):
         self._register_tool(create_weather_tool())
         self._register_tool(create_news_tool())
         self._register_tool(create_daily_briefing_tool())
+        # TTS
+        self._register_tool(create_tts_speak_tool())
         # Security tools (available to all agents, filtered by tool whitelist in agents.json)
         for tool in create_security_tools():
             self._register_tool(tool)
