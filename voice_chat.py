@@ -6,6 +6,7 @@ import asyncio
 import ctypes
 import os
 import queue
+import subprocess
 import tempfile
 import threading
 import time
@@ -54,6 +55,83 @@ _status_names = {IDLE: "Idle", RECORDING: "Recording", PROCESSING: "Processing",
 _status_colors = {IDLE: "#ffffff", RECORDING: "#ff4444", PROCESSING: "#ffaa00", SPEAKING: "#44ff44"}
 _status_queue: queue.Queue[int] = queue.Queue()
 _tray_icon: pystray.Icon | None = None
+_kinetic_proc: subprocess.Popen | None = None
+_kinetic_venv = Path(__file__).parent / ".venv" / "Scripts" / "kinetic.exe"
+
+
+def _start_kinetic() -> None:
+    global _kinetic_proc
+    if _kinetic_venv.exists():
+        _kinetic_proc = subprocess.Popen(
+            [str(_kinetic_venv)],
+            creationflags=subprocess.CREATE_NO_WINDOW if HIDE_CONSOLE else 0,
+        )
+
+
+def _stop_kinetic() -> None:
+    global _kinetic_proc
+    if _kinetic_proc and _kinetic_proc.poll() is None:
+        _kinetic_proc.terminate()
+        try:
+            _kinetic_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _kinetic_proc.kill()
+        _kinetic_proc = None
+
+
+def _on_restart() -> None:
+    _stop_kinetic()
+    _start_kinetic()
+
+
+def _on_quit() -> None:
+    _stop_kinetic()
+    os._exit(0)
+
+
+def _on_settings() -> None:
+    import tkinter as tk
+    from tkinter import ttk
+
+    fields = [
+        ("API URL", "API_URL", "http://localhost:18789/api/chat"),
+        ("Hotkey", "PTT_KEY", "alt+v"),
+        ("TTS Voice", "TTS_VOICE", "en-GB-RyanNeural"),
+        ("TTS Speed", "TTS_SPEED", "+20%"),
+        ("Hide Console", "HIDE_CONSOLE", "1"),
+    ]
+    root = tk.Tk()
+    root.title("K.I.N.E.T.I.C. Settings")
+    root.resizable(False, False)
+    entries = {}
+    for i, (label, key, default) in enumerate(fields):
+        ttk.Label(root, text=label).grid(row=i, column=0, padx=8, pady=4, sticky="w")
+        e = ttk.Entry(root, width=40)
+        e.insert(0, os.environ.get(key, default))
+        e.grid(row=i, column=1, padx=8, pady=4)
+        entries[key] = e
+
+    def _save():
+        env_path = Path(__file__).parent / ".env"
+        existing = {}
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    existing[k.strip()] = v.strip()
+        for k, e in entries.items():
+            existing[k] = e.get().strip()
+        with open(env_path, "w") as f:
+            for k, v in existing.items():
+                f.write(f"{k}={v}\n")
+        for k, e in entries.items():
+            os.environ[k] = e.get().strip()
+        root.destroy()
+
+    ttk.Button(root, text="Save", command=_save).grid(
+        row=len(fields), column=0, columnspan=2, pady=10
+    )
+    root.mainloop()
 
 
 _LOGO_PATH = Path(__file__).parent / "images" / "logo-white.png"
@@ -87,7 +165,11 @@ def _set_status(s: int) -> None:
 def _run_tray() -> None:
     global _tray_icon
     icon_img = _make_icon(_status_colors[IDLE])
-    menu = pystray.Menu(pystray.MenuItem("Quit", _on_quit))
+    menu = pystray.Menu(
+        pystray.MenuItem("Restart", _on_restart),
+        pystray.MenuItem("Settings", _on_settings),
+        pystray.MenuItem("Quit", _on_quit),
+    )
     icon = pystray.Icon("kinetic_voice", icon_img, "K.I.N.E.T.I.C. Voice", menu)
     _tray_icon = icon
 
@@ -247,6 +329,9 @@ def main() -> None:
         ctypes.windll.user32.ShowWindow(
             ctypes.windll.kernel32.GetConsoleWindow(), 0
         )
+
+    # Start kinetic if not already running
+    _start_kinetic()
 
     thread = threading.Thread(target=_run_tray, daemon=True)
     thread.start()
