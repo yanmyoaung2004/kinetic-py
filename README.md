@@ -108,16 +108,9 @@ Requires admin (for global hotkey). Configure via env vars:
 - `TTS_SPEED` — speaking rate (default: `+20%`)
 - `STT_BACKEND` — `google` (default, online) or `offline` (faster-whisper)
 
-## Desktop UI (Tauri)
+## Web Dashboard
 
-A native desktop app is available in `src-tauri/` (requires Visual Studio 2022 Build Tools):
-
-```bash
-cd src-tauri
-cargo tauri build
-```
-
-Or run the web dashboard at `http://localhost:18789` while kinetic is running.
+Open `http://localhost:18789` while kinetic is running for a chat UI with session management, knowledge base, and provider config.
 
 ## Architecture
 

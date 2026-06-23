@@ -23,10 +23,5 @@ agent_sandbox/
 Thumbs.db
 .DS_Store
 
-# Tauri
-src-tauri/target/
-
 # Node
 node_modules/
-package-lock.json
-package.json

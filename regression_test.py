@@ -1,6 +1,7 @@
 """Regression test — validates all modules import, tools register, and key functions exist."""
 
 import importlib
+import re
 import sys
 from pathlib import Path
 
@@ -52,7 +53,6 @@ for mod_name in modules:
 # ── Tool counts ────────────────────────────────────────
 
 print("\n=== Tool Counts ===")
-import re
 
 tool_files: dict[str, tuple[str, str]] = {
     "security_tools.py": ("src/agents/tools/security_tools.py", "create_security_tools"),
@@ -102,7 +102,10 @@ print("\n=== Security Agent Whitelist ===")
 agents_json = open("config/agents.json").read()
 security_tools_in_config = re.findall(r'"security_[a-z_]+"', agents_json)
 coding_tools_in_config = re.findall(r'"security_[a-z_]+"', agents_json[agents_json.find("coding-assistant"):])
-check(len(security_tools_in_config) >= 15, f"{len(security_tools_in_config)} security tools in security-agent whitelist")
+check(
+    len(security_tools_in_config) >= 15,
+    f"{len(security_tools_in_config)} security tools in security-agent whitelist",
+)
 
 
 # ── Key env vars in code ───────────────────────────────
@@ -142,14 +145,6 @@ print("\n=== Docker ===")
 check(Path("Dockerfile").exists(), "Dockerfile exists")
 check(Path("docker-compose.yml").exists(), "docker-compose.yml exists")
 check(Path(".dockerignore").exists(), ".dockerignore exists")
-
-
-# ── Tauri ──────────────────────────────────────────────
-
-print("\n=== Desktop UI (Tauri) ===")
-check(Path("src-tauri").is_dir(), "src-tauri/ directory exists")
-check(Path("src-tauri/Cargo.toml").exists(), "Cargo.toml exists")
-check(Path("desktop/index.html").exists(), "desktop/index.html exists")
 
 
 # ── Summary ────────────────────────────────────────────
