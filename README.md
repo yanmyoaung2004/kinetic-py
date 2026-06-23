@@ -48,6 +48,7 @@ kinetic
 - **Scheduler** — recurring tasks, monitors, alerts
 - **Tool system** — 80+ tools across all categories
 - **Cross-session memory** — facts learned in one session persist across all sessions via global profile. `/forget_fact <keyword>` to remove specific facts.
+- **Offline STT** — set `STT_BACKEND=offline` for faster-whisper (fully offline, ~75MB model)
 
 ### Voice Chat
 - **Push-to-talk** — press Alt+V, speak, release, hear response

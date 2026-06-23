@@ -57,6 +57,11 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 - **Edge TTS** — Microsoft Neural voices, configurable speed and voice
 - **Interrupt** — press hotkey during playback to stop and re-record
 - **Restart** — tray menu restarts the server
+- **Settings** — opens .env in Notepad for editing
+- **Cross-session memory** — global profile persists facts across sessions, /forget_fact to remove
+- **Edge TTS** — Microsoft Neural voices, configurable speed and voice
+- **Interrupt** — press hotkey during playback to stop and re-record
+- **Restart** — tray menu restarts the server
 - **Settings UI** — Tkinter dialog to edit env vars (API URL, hotkey, voice, speed)
 
 ## Security Tools
