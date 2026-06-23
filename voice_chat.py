@@ -13,6 +13,7 @@ import time
 import wave
 from pathlib import Path
 
+import dotenv
 import edge_tts
 import httpx
 import keyboard
@@ -21,9 +22,12 @@ import pystray
 import speech_recognition as sr
 from PIL import Image, ImageDraw
 
+dotenv.load_dotenv()
+
 # ── Config ─────────────────────────────────────────────
 API_URL = os.environ.get("API_URL", "http://localhost:18789/api/chat")
 PUSH_TO_TALK_KEY = os.environ.get("PTT_KEY", "alt+v")
+HIDE_CONSOLE = os.environ.get("HIDE_CONSOLE", "1").lower() not in ("1", "true", "yes")
 # ── Usage ──
 # Change hotkey by setting PTT_KEY env var, e.g.:
 #   PTT_KEY=ctrl+shift+v   (default on many systems)
@@ -31,11 +35,6 @@ PUSH_TO_TALK_KEY = os.environ.get("PTT_KEY", "alt+v")
 #   PTT_KEY=ctrl+alt+v     (safe alternative)
 #   PTT_KEY=f1             (function key)
 # ───────────
-
-# Show active hotkey (useful for debugging when console is hidden)
-_print_debug = os.environ.get("HIDE_CONSOLE", "1").lower() not in ("1", "true", "yes")
-if _print_debug:
-    print(f"Hotkey: {PUSH_TO_TALK_KEY}")
 VOICE = os.environ.get("TTS_VOICE", "en-GB-RyanNeural")
 SPEED = os.environ.get("TTS_SPEED", "+20%")
 
@@ -43,7 +42,6 @@ RECORD_FORMAT = pyaudio.paInt16
 RECORD_CHANNELS = 1
 RECORD_RATE = 16000
 RECORD_CHUNK = 1024
-HIDE_CONSOLE = os.environ.get("HIDE_CONSOLE", "1").lower() in ("1", "true", "yes")
 
 # ── Status ─────────────────────────────────────────────
 IDLE = 0
@@ -122,6 +120,13 @@ def _make_icon(color_hex: str) -> Image.Image:
 
 def _set_status(s: int) -> None:
     """Update tray icon from any thread."""
+    global _tray_icon
+    if _tray_icon is not None:
+        try:
+            _tray_icon.icon = _make_icon(_status_colors.get(s, _status_colors[IDLE]))
+            _tray_icon.title = "K.I.N.E.T.I.C. Voice - " + _status_names.get(s, "?")
+        except Exception:
+            pass
     _status_queue.put(s)
 
 
