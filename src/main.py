@@ -94,6 +94,7 @@ COMMANDS_HELP = """
 /knowledge remove <id> — Remove a document from the index
 /search <query> — Search conversation history
 /perfect — Learn from the last successful workflow
+/forget — Remove a fact from my memory (e.g., /forget_fact my location)
 /forget <trigger> — Forget a learned workflow
 /workflows — Show all learned workflows
 /tts_on — Enable voice responses (TTS mode)
