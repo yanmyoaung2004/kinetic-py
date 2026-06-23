@@ -472,6 +472,14 @@ class KinetiCBot:
                 await msg.reply_text("No recent tool calls to learn from.")
             return
 
+        if cmd == "/forget_fact" and len(parts) >= 2:
+            from src.agents.memory import AgentMemory
+
+            mem = AgentMemory(self._agent_target, "agents_workspace", session_id=self.dispatcher.get_active_session())
+            ok = mem.forget_fact(" ".join(parts[1:]))
+            await msg.reply_text(f"{'Forgotten.' if ok else 'No matching facts found.'}")
+            return
+
         if cmd == "/forget" and len(parts) >= 2:
             from src.agents.learning import forget_workflow
             ok = await forget_workflow(parts[1].lower())
@@ -798,6 +806,7 @@ class KinetiCBot:
                             "search",
                             "perfect",
                             "forget",
+                            "forget_fact",
                             "workflows",
                             "tts_on",
                             "tts_off",

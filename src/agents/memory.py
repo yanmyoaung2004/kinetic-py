@@ -53,6 +53,7 @@ class AgentMemory:
             self._profile_path = session_dir / "profile.json"
 
         agent_dir.mkdir(parents=True, exist_ok=True)
+        self._global_profile_path = agent_dir / "global_profile.json"
         self._save_active_session()
         self._load()
 
@@ -140,16 +141,65 @@ class AgentMemory:
         return True
 
     def read_profile(self) -> UserProfile | None:
-        if not self._profile_path.exists():
+        session = None
+        if self._profile_path.exists():
+            try:
+                data = json.loads(self._profile_path.read_text("utf-8"))
+                session = UserProfile(**data)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        global_p = None
+        if self._global_profile_path.exists():
+            try:
+                data = json.loads(self._global_profile_path.read_text("utf-8"))
+                global_p = UserProfile(**data)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if global_p is None and session is None:
+            return None
+        if global_p is None:
+            return session
+        if session is None:
+            return global_p
+        return UserProfile(
+            known_facts=list(dict.fromkeys(global_p.known_facts + session.known_facts)),
+            preferences=list(dict.fromkeys(global_p.preferences + session.preferences)),
+            last_updated=session.last_updated or global_p.last_updated,
+            extraction_count=session.extraction_count or global_p.extraction_count,
+        )
+
+    def write_profile(self, profile: UserProfile) -> None:
+        self._profile_path.write_text(json.dumps(profile.__dict__, default=str, indent=2))
+        global_p = self.read_global_profile()
+        merged = UserProfile(
+            known_facts=list(dict.fromkeys(profile.known_facts + (global_p.known_facts if global_p else []))),
+            preferences=list(dict.fromkeys(profile.preferences + (global_p.preferences if global_p else []))),
+            last_updated=profile.last_updated,
+            extraction_count=profile.extraction_count,
+        )
+        self._global_profile_path.write_text(json.dumps(merged.__dict__, default=str, indent=2))
+
+    def read_global_profile(self) -> UserProfile | None:
+        if not self._global_profile_path.exists():
             return None
         try:
-            data = json.loads(self._profile_path.read_text("utf-8"))
+            data = json.loads(self._global_profile_path.read_text("utf-8"))
             return UserProfile(**data)
         except (json.JSONDecodeError, TypeError):
             return None
 
-    def write_profile(self, profile: UserProfile) -> None:
-        self._profile_path.write_text(json.dumps(profile.__dict__, default=str, indent=2))
+    def forget_fact(self, keyword: str) -> bool:
+        global_p = self.read_global_profile()
+        if not global_p:
+            return False
+        before = len(global_p.known_facts) + len(global_p.preferences)
+        global_p.known_facts = [f for f in global_p.known_facts if keyword.lower() not in f.lower()]
+        global_p.preferences = [p for p in global_p.preferences if keyword.lower() not in p.lower()]
+        after = len(global_p.known_facts) + len(global_p.preferences)
+        if before != after:
+            self._global_profile_path.write_text(json.dumps(global_p.__dict__, default=str, indent=2))
+            return True
+        return False
 
     def reset(self) -> None:
         self._history.clear()
