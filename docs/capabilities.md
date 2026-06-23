@@ -53,6 +53,7 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 - **Push-to-talk** — press Alt+V, speak, release, hear response
 - **System tray app** — icon shows idle/recording/processing/speaking states
 - **Google Web Speech STT** — accurate, free, no API key
+- **Offline STT** — faster-whisper backend via STT_BACKEND=offline (~75MB model, fully offline)
 - **Edge TTS** — Microsoft Neural voices, configurable speed and voice
 - **Interrupt** — press hotkey during playback to stop and re-record
 - **Restart** — tray menu restarts the server

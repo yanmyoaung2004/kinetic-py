@@ -47,6 +47,16 @@ kinetic
 - **RAG knowledge base** — vector store with embeddings for long-term memory
 - **Scheduler** — recurring tasks, monitors, alerts
 - **Tool system** — 80+ tools across all categories
+- **Cross-session memory** — facts learned in one session persist across all sessions via global profile. `/forget_fact <keyword>` to remove specific facts.
+
+### Voice Chat
+- **Push-to-talk** — press Alt+V, speak, release, hear response
+- **System tray** — icon shows status (idle/recording/processing/speaking)
+- **Google STT** — accurate speech-to-text via Google Web Speech API
+- **Offline STT** — set `STT_BACKEND=offline` for faster-whisper (fully offline, ~75MB model)
+- **Edge TTS** — natural voice output with Microsoft Neural TTS
+- **Interrupt** — press hotkey during playback to stop and re-record
+- **Toggle mode** — `/tts_on` for automatic voice responses in Telegram
 
 ### Security (28 tools)
 Scan system for vulnerabilities, monitor network, check processes, manage firewall rules, scan ports, audit users, check logs, track USB devices, lookup CVEs, check IPs against threat feeds, run Defender scans, and more.
@@ -80,6 +90,7 @@ Scan system for vulnerabilities, monitor network, check processes, manage firewa
 /session       — Manage conversation sessions
 /reset         — Clear current conversation
 /profile       — View learned profile
+/forget_fact   — Remove a fact from my memory (e.g., /forget_fact my location)
 /task list     — Show scheduled tasks
 ```
 
@@ -95,6 +106,18 @@ Requires admin (for global hotkey). Configure via env vars:
 - `PTT_KEY` — hotkey (default: `alt+v`)
 - `TTS_VOICE` — voice (default: `en-GB-RyanNeural`)
 - `TTS_SPEED` — speaking rate (default: `+20%`)
+- `STT_BACKEND` — `google` (default, online) or `offline` (faster-whisper)
+
+## Desktop UI (Tauri)
+
+A native desktop app is available in `src-tauri/` (requires Visual Studio 2022 Build Tools):
+
+```bash
+cd src-tauri
+cargo tauri build
+```
+
+Or run the web dashboard at `http://localhost:18789` while kinetic is running.
 
 ## Architecture
 
