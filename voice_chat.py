@@ -28,12 +28,14 @@ dotenv.load_dotenv()
 API_URL = os.environ.get("API_URL", "http://localhost:18789/api/chat")
 PUSH_TO_TALK_KEY = os.environ.get("PTT_KEY", "alt+v")
 HIDE_CONSOLE = os.environ.get("HIDE_CONSOLE", "1").lower() not in ("1", "true", "yes")
+STT_BACKEND = os.environ.get("STT_BACKEND", "google").lower()
 # ── Usage ──
 # Change hotkey by setting PTT_KEY env var, e.g.:
 #   PTT_KEY=ctrl+shift+v   (default on many systems)
 #   PTT_KEY=ctrl+`         (tilde key)
 #   PTT_KEY=ctrl+alt+v     (safe alternative)
 #   PTT_KEY=f1             (function key)
+# Set STT_BACKEND=offline for fully offline speech-to-text (faster-whisper, ~75MB model)
 # ───────────
 VOICE = os.environ.get("TTS_VOICE", "en-GB-RyanNeural")
 SPEED = os.environ.get("TTS_SPEED", "+20%")
@@ -199,6 +201,9 @@ def _record_to_wav(p: pyaudio.PyAudio) -> Path | None:
 
 
 async def _stt(wav_path: Path) -> str:
+    if STT_BACKEND == "offline":
+        from src.agents.tools.stt_offline import transcribe
+        return await transcribe(wav_path)
     try:
         r = sr.Recognizer()
         with sr.AudioFile(str(wav_path)) as source:
