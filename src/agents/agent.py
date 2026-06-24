@@ -53,6 +53,7 @@ from src.agents.tools.knowledge_tool import (
 from src.agents.tools.maintenance_tools import create_maintenance_tools
 from src.agents.tools.monitor_tool import create_create_monitor_tool, create_list_monitors_tool
 from src.agents.tools.news_tool import create_news_tool
+from src.agents.tools.obsidian_second_brain import inject_knowledge, search_vault_for_context
 from src.agents.tools.obsidian_tools import (
     create_obsidian_canvas_add_tool,
     create_obsidian_create_note_tool,
@@ -179,6 +180,12 @@ GLOBAL_PROTOCOLS = """
 - Obsidian vault → call obsidian_search. Don't guess what notes exist.
 - YouTube → call get_youtube_info. Don't guess video content.
 - Schedule → call list_scheduled_tasks. Don't guess what's scheduled.
+
+# SECOND BRAIN (OBSIDIAN)
+- When the user asks something, relevant vault notes are automatically injected as context.
+- When you learn new information about the user, it's auto-saved to the vault.
+- After creating a note, use obsidian_suggest_links to find and suggest related notes.
+- Knowledge is saved to the "Inbox" folder with auto-tagging.
 
 # TTS / VOICE MODE
 - When TTS mode is active, your full response is read aloud.
@@ -492,7 +499,16 @@ class AgentInstance(IAgent):
         # Stage 1.5: Recall relevant past memories (injected into think loop, not persisted)
         recall = await self._recall_memories(message)
 
-        # Stage 1.6: Recall learned workflows and inject as context
+        # Stage 1.6: Recall relevant Obsidian notes (auto-indexing)
+        if os.environ.get("OBSIDIAN_VAULT_PATH"):
+            try:
+                vault_ctx = await search_vault_for_context(message)
+                if vault_ctx:
+                    recall = (recall + "\n\n" + vault_ctx) if recall else vault_ctx
+            except Exception:
+                pass
+
+        # Stage 1.7: Recall learned workflows and inject as context
         try:
             from src.agents.learning import find_workflows
             workflows = await find_workflows(message)
@@ -564,6 +580,19 @@ class AgentInstance(IAgent):
             if msg_count % 3 == 0:
                 try:
                     await self._extract_profile()
+                except Exception:
+                    pass
+            if msg_count % 10 == 0 and os.environ.get("OBSIDIAN_VAULT_PATH"):
+                try:
+                    # Knowledge injection: save conversation insights to vault
+                    conv = self._memory.get_messages()[-6:]
+                    conv_dicts = [
+                        {"role": m.role, "content": m.content or ""}
+                        for m in conv if m.role in ("user", "assistant") and m.content
+                    ]
+                    note = await inject_knowledge(conv_dicts, self.id)
+                    if note:
+                        logger.info("[BRAIN] Injected knowledge -> %s", note)
                 except Exception:
                     pass
             if msg_count > 0 and msg_count % 5 == 0:
