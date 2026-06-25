@@ -9,12 +9,12 @@
       "model": "lightning-ai/gpt-oss-120b"
     },
     "think": {
-      "provider": "lightning",
-      "model": "lightning-ai/gpt-oss-120b"
+      "provider": "ollama",
+      "model": "qwen3:0.6b"
     },
     "tool_call": {
-      "provider": "lightning",
-      "model": "lightning-ai/gpt-oss-120b"
+      "provider": "ollama",
+      "model": "qwen3:0.6b"
     },
     "answer": {
       "provider": "lightning",
@@ -31,6 +31,10 @@
       "apiKeyEnv": "OPENCODE_API_KEY"
     },
     "ollama-embedding": {
+      "baseUrl": "http://127.0.0.1:11434/v1/",
+      "apiKeyEnv": "OLLAMA_API_KEY"
+    },
+    "ollama": {
       "baseUrl": "http://127.0.0.1:11434/v1/",
       "apiKeyEnv": "OLLAMA_API_KEY"
     },

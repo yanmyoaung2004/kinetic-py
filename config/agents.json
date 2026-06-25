@@ -11,7 +11,7 @@
       "id": "main",
       "name": "Main",
       "soulPath": "./main/SOUL.md",
-      "provider": "lightning",
+      "provider": "ollama",
       "can_delegate": false
     },
     {

@@ -92,8 +92,9 @@ class UnifiedProvider:
             }
             headers = {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self._config.api_key}",
             }
+            if self._config.api_key:
+                headers["Authorization"] = f"Bearer {self._config.api_key}"
             assert self._client_http is not None
             async with self._client_http.stream(
                 "POST", f"{base}/chat/completions", json=body, headers=headers,
@@ -217,8 +218,9 @@ class UnifiedProvider:
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self._config.api_key}",
         }
+        if self._config.api_key:
+            headers["Authorization"] = f"Bearer {self._config.api_key}"
 
         response = await client.post(
             f"{base}/chat/completions",
