@@ -696,7 +696,11 @@ class AgentInstance(IAgent):
                         lambda p: p.generate_with_tools(msgs, available_tools),
                     )
                 # Some models return raw JSON args as content instead of tool_calls
-                if not response.tool_calls and response.content and response.content.strip().startswith("{"):
+                if response.tool_calls:
+                    # Discard text content when tool calls are present
+                    # (LLMs sometimes echo the tool call as text in content)
+                    response.content = None
+                elif response.content and response.content.strip().startswith("{"):
                     try:
                         parsed = json.loads(response.content)
                         if "path" in parsed and "content" in parsed:
