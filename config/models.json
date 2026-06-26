@@ -9,12 +9,12 @@
       "model": "lightning-ai/gpt-oss-120b"
     },
     "think": {
-      "provider": "ollama",
-      "model": "qwen3:0.6b"
+      "provider": "lightning",
+      "model": "lightning-ai/gpt-oss-120b"
     },
     "tool_call": {
-      "provider": "ollama",
-      "model": "qwen3:0.6b"
+      "provider": "lightning",
+      "model": "lightning-ai/gpt-oss-120b"
     },
     "answer": {
       "provider": "lightning",

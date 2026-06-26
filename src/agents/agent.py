@@ -216,6 +216,40 @@ def _create_think_providers(
     return providers
 
 
+# ── Smart tool filtering ──────────────────────────────
+_CORE_TOOLS = {
+    "read_file", "write_file", "edit_file", "delete_file", "list_files", "undo_file",
+    "download_url", "execute_command", "run_code",
+    "send_file", "send_message",
+    "get_current_time", "get_system_info", "read_env_var",
+    "web_search", "query_knowledge_base",
+    "schedule_task", "list_scheduled_tasks", "create_monitor", "list_monitors",
+    "spawn_specialist", "run_pipeline",
+    "generate_image", "image_search", "get_youtube_info",
+    "zip", "unzip", "git", "weather", "news", "daily_briefing",
+    "list_skills", "call_opencode", "apply_opencode", "create_presentation",
+    "browser_navigate", "browser_click", "browser_fill", "browser_extract",
+    "browser_screenshot", "browser_html", "browser_close",
+    "read_emails", "read_email_body", "send_email", "reply_to_email",
+    "index_file", "index_url", "index_github", "scrape_and_index", "knowledge_stats",
+    "tts_speak",
+}
+
+_TOOL_GROUPS = [
+    ("security_", {"scan", "vulnerability", "virus", "malware", "defender", "firewall",
+                   "block", "unblock", "port", "network", "process", "kill", "threat",
+                   "cve", "ip", "audit", "user", "permission", "log", "event", "usb",
+                   "startup", "wifi", "dns", "traceroute", "whois", "bandwidth",
+                   "ping", "host", "password", "encrypt"}),
+    ("obsidian_", {"obsidian", "vault", "note", "notes", "daily", "journal",
+                   "template", "tag", "flashcard", "brain", "markdown"}),
+    ("habit_", {"habit", "streak", "track"}),
+    ("pomodoro_", {"pomodoro", "focus", "timer", "break"}),
+    ("system_", {"disk", "temp", "cleanup", "startup"}),
+    ("network_", {"dns", "traceroute", "whois", "bandwidth"}),
+]
+
+
 class AgentInstance(IAgent):
     def __init__(
         self,
@@ -620,7 +654,12 @@ class AgentInstance(IAgent):
         self, current_depth: int, recall: str = "",
         on_token: Callable[[str], None] | None = None,
     ) -> str:
-        tools = self._tools.get_definitions()
+        all_tools = self._tools.get_definitions()
+        # Smart filter: keep core tools + tools matching message keywords
+        msg_lower = self._last_user_message.lower()
+        tools = [t for t in all_tools if t.function["name"] in _CORE_TOOLS
+                 or any(t.function["name"].startswith(prefix) and any(kw in msg_lower for kw in kws)
+                        for prefix, kws in _TOOL_GROUPS)]
 
         # Build context block (not persisted to memory)
         from datetime import datetime as _dt
