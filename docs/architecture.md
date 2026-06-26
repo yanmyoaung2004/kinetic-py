@@ -2,14 +2,14 @@
 
 ## Overview
 
-K.I.N.E.T.I.C. is an autonomous AI agent framework built on Python. It features multi-agent orchestration, stage-based LLM routing with failover, 60+ tools, persistent memory with RAG, Docker sandboxed code execution, multi-platform interfaces (Telegram + Web + CLI), and an installable skill system.
+K.I.N.E.T.I.C. is an autonomous AI agent framework built on Python. It features multi-agent orchestration with a thin orchestrator and specialized sub-agents, stage-based LLM routing with failover, 80+ tools distributed across agents, persistent memory with RAG, Docker sandboxed code execution, multi-platform interfaces (Telegram + Web + Voice Chat), and an installable skill system.
 
 ---
 
 ## High-Level Architecture
 
 ```
-Telegram Bot / Web UI / CLI
+Telegram Bot / Web UI / Voice Chat
          │
          ▼
   KinetiCDispatcher (orchestrator.py)
@@ -21,18 +21,49 @@ Telegram Bot / Web UI / CLI
          └── Stage override resolution
          │
          ▼
-  AgentInstance (agent.py)
+  AgentInstance — MAIN (agent.py) [~12 core tools]
          │
-         ├── Stage 1: Classify (multi mode)
-         ├── Stage 2: Think loop (max 3 iterations)
-         │     └── LLM call → Tool execution → repeat
-         ├── Stage 3: Polish (multi mode)
-         ├── Background tasks:
-         │     ├── Profile extraction (every 3 msgs)
-         │     ├── Memory snapshot (every 5 msgs)
-         │     ├── History compression (>60 msgs)
-         │     └── SOUL evolution (every 50 msgs)
-         └── Workflow learning (SQLite)
+         ├── Orchestrator — routes tasks via send_message
+         │
+         ├── ▶ obsidian-assistant  [10 obsidian tools]
+         ├── ▶ coding-assistant    [18 coding tools]
+         ├── ▶ security-agent      [33 security + network tools]
+         ├── ▶ productivity-agent  [10 habit + pomodoro tools]
+         └── ▶ system-agent        [3 maintenance tools]
+         │
+         └── Background tasks:
+              ├── Profile extraction (every 3 msgs)
+              ├── Knowledge injection (every 10 msgs)
+              ├── Context compression
+               └── SOUL evolution
+          └── Workflow learning (SQLite)
+```
+
+---
+
+## Agent Architecture
+
+The main agent is a thin **orchestrator** with ~12 core tools. Specialized tasks are delegated via `send_message` to sub-agents.
+
+| Agent | Tools | Purpose |
+|-------|-------|---------|
+| **main** | read/write files, web search, send file, schedule, spawn | Orchestrator — routes tasks, handles simple requests |
+| **obsidian-assistant** | obsidian_create/edit/search, template, recent, tags, daily, flashcards | Second brain — manages Obsidian vault |
+| **coding-assistant** | file ops, git, run code, opencode, execute commands | Software development tasks |
+| **security-agent** | security_scan/block/audit, network_dns/whois/traceroute, CVE lookup, IP check | System security scanning and threat intel |
+| **productivity-agent** | habit_add/log/list, pomodoro_start/status/stats | Habit tracking and focus sessions |
+| **system-agent** | system_temp_cleanup, disk_usage, startup_optimize | System maintenance |
+
+### Communication Flow
+
+```
+User: "scan my system for vulnerabilities"
+  → main agent receives message
+  → main recognizes security task
+  → main calls send_message(target="security-agent", message="scan my system...")
+  → security-agent processes with its 33 security tools
+  → security-agent returns result
+  → main agent formats and delivers response
 ```
 
 ---
