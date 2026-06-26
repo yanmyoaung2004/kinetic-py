@@ -28,6 +28,7 @@
         "get_current_time",
         "schedule_task",
         "list_scheduled_tasks",
+        "remove_scheduled_task",
         "execute_command",
         "tts_speak"
       ]

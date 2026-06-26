@@ -36,8 +36,12 @@ class ToolRegistry:
     async def execute(self, name: str, args: Any, ctx: ToolContext | None = None) -> str:
         handler = self._tools.get(name)
         if not handler:
-            available = ", ".join(self._tools.keys())
-            return f"ERROR: Unknown tool '{name}'. Available: {available}"
+            available = ", ".join(sorted(self._tools.keys()))
+            return (
+                f"ERROR: Tool '{name}' is not available.\n"
+                f"Available tools: {available}\n"
+                f"Use send_message to delegate to a specialist agent for tasks requiring unavailable tools."
+            )
         try:
             result = await handler.execute(args, ctx)
             return result if isinstance(result, str) else str(result)
