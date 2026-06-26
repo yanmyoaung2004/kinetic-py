@@ -736,12 +736,20 @@ class AgentInstance(IAgent):
                     "[TOOL] Iter %d: %s", iteration, ", ".join(c.get("function", {}).get("name", "?") for c in calls)
                 )
 
-                if is_last:
-                    msgs = self._memory.get_messages()
-                    last_tool = next((m for m in reversed(msgs) if m.role == "tool"), None)
-                    answer = last_tool.content if last_tool else "Done."
-                    self._memory.append(ChatMessage(role="assistant", content=answer or "Done."))
-                    return answer or "Done."
+                if is_last and response.tool_calls:
+                    # Give the LLM one more chance to format a natural response
+                    msgs = list(self._memory.get_messages())
+                    try:
+                        final = await call_with_fallback(
+                            self._think_providers,
+                            lambda p: p.generate(msgs),
+                        )
+                        answer = final.content or "Done."
+                    except Exception:
+                        last_tool = next((m for m in reversed(msgs) if m.role == "tool"), None)
+                        answer = last_tool.content if last_tool else "Done."
+                    self._memory.append(ChatMessage(role="assistant", content=answer))
+                    return answer
 
                 self._memory.append(ChatMessage(role="assistant", content=response.content or "", tool_calls=calls))
 
