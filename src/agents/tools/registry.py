@@ -89,6 +89,7 @@ async def _do_send_message(
     ctx: ToolContext | None,
 ) -> str:
     depth = (ctx.depth if ctx else 0) + 1
+    logger.info("[DELEGATE] main -> %s (depth=%d): %.120s", args["target"], depth, args["message"])
     result = await dispatch_fn(args["target"], args["message"], depth)
     return f"Response from {args['target']}:\n{result}"
 
