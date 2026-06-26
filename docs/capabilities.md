@@ -2,12 +2,35 @@
 
 ## Agent Framework
 
+- **Thin orchestrator architecture** — main agent has ~15 core tools; specialized tasks delegated to sub-agents
 - **Dispatcher-registry architecture** — lazy-loads agents, evicts after 5 min idle
 - **Sub-agent spawning** — library agents with `can_delegate: true` spawn ephemeral specialists (max 3, depth 3)
 - **Inter-agent messaging** — `send_message` to any registered agent by ID
 - **SOUL personality layer** — per-agent `SOUL.md` loaded as system prompt
 - **ReAct-style reasoning** — visible tool call cycles with think/execute loop
 - **Session management** — `/session new`, `/session list`, `/session <id>`
+
+### Agent Roles
+
+| Agent | Tools | Role |
+|-------|-------|------|
+| **main** | ~15 core tools | Orchestrator — routes tasks, handles simple requests directly |
+| **coding-assistant** | 21 tools | Software development (code, git, opencode, commands) |
+| **security-agent** | 33 tools | System security, network, threat intel |
+| **obsidian-assistant** | 15 tools | Obsidian vault management (second brain) |
+| **productivity-agent** | 10 tools | Habits and pomodoro timer |
+| **system-agent** | 3 tools | Temp cleanup, disk usage, startup optimization |
+
+### Communication Flow
+
+```
+User -> main agent (classifies intent)
+  -> if simple: handles directly with core tools
+  -> if specialized: send_message to appropriate agent
+     -> specialist processes with its focused toolset
+     -> returns result
+  -> main agent delivers response
+```
 
 ## Memory & User Profile
 

@@ -9,10 +9,27 @@
   "registry": [
     {
       "id": "main",
-      "name": "Main",
+      "name": "Assistant",
       "soulPath": "./main/SOUL.md",
       "provider": "lightning",
-      "can_delegate": false
+      "can_delegate": true,
+      "tools": [
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "delete_file",
+        "undo_file",
+        "download_url",
+        "send_file",
+        "send_message",
+        "web_search",
+        "spawn_specialist",
+        "get_current_time",
+        "schedule_task",
+        "list_scheduled_tasks",
+        "tts_speak"
+      ]
     },
     {
       "id": "obsidian-assistant",
@@ -34,7 +51,10 @@
         "obsidian_suggest_links",
         "obsidian_daily_digest",
         "obsidian_canvas_add",
-        "obsidian_spaced_repetition"
+        "obsidian_spaced_repetition",
+        "obsidian_template",
+        "obsidian_recent",
+        "obsidian_tags"
       ]
     },
     {
@@ -63,7 +83,9 @@
         "schedule_task",
         "list_scheduled_tasks",
         "create_monitor",
-        "list_monitors"
+        "list_monitors",
+        "call_opencode",
+        "apply_opencode"
       ]
     },
     {
@@ -107,7 +129,41 @@
         "network_traceroute",
         "network_whois",
         "network_bandwidth",
-        "tts_speak",
+        "send_message"
+      ]
+    },
+    {
+      "id": "productivity-agent",
+      "name": "Productivity Agent",
+      "soulPath": "./productivity-agent/SOUL.md",
+      "provider": "lightning",
+      "type": "library",
+      "can_delegate": false,
+      "tools": [
+        "habit_add",
+        "habit_log",
+        "habit_unlog",
+        "habit_list",
+        "habit_stats",
+        "habit_remove",
+        "pomodoro_start",
+        "pomodoro_status",
+        "pomodoro_stats",
+        "pomodoro_stop",
+        "send_message"
+      ]
+    },
+    {
+      "id": "system-agent",
+      "name": "System Agent",
+      "soulPath": "./system-agent/SOUL.md",
+      "provider": "lightning",
+      "type": "library",
+      "can_delegate": false,
+      "tools": [
+        "system_temp_cleanup",
+        "system_disk_usage",
+        "system_startup_optimize",
         "send_message"
       ]
     }
