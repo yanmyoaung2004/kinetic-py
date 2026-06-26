@@ -14,12 +14,12 @@
       "provider": "lightning",
       "can_delegate": true,
       "tools": [
-        "read_file",
-        "write_file",
-        "edit_file",
-        "list_files",
-        "delete_file",
-        "undo_file",
+        "sandbox_read_file",
+        "sandbox_write_file",
+        "sandbox_edit_file",
+        "sandbox_list_files",
+        "sandbox_delete_file",
+        "sandbox_undo_file",
         "download_url",
         "send_file",
         "send_message",
@@ -28,6 +28,7 @@
         "get_current_time",
         "schedule_task",
         "list_scheduled_tasks",
+        "execute_command",
         "tts_speak"
       ]
     },
