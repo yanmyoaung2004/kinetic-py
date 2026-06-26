@@ -181,11 +181,6 @@ GLOBAL_PROTOCOLS = """
 - YouTube → call get_youtube_info. Don't guess video content.
 - Schedule → call list_scheduled_tasks. Don't guess what's scheduled.
 
-# SIMPLE SYSTEM QUERIES
-- "what's my IP" → use execute_command with "ipconfig" or delegate to security-agent
-- "system info" → use execute_command with "systeminfo" or delegate
-- Do NOT download web pages or browse the web for simple local system queries.
-
 # SECOND BRAIN (OBSIDIAN)
 - When the user asks something, relevant vault notes are automatically injected as context.
 - When you learn new information about the user, it's auto-saved to the vault.
