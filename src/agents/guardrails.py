@@ -51,7 +51,7 @@ GUARDED_TOOLS: dict[str, dict[str, str]] = {
 _pending: dict[str, dict[str, Any]] = {}
 
 
-def request_approval(tool_name: str, args: dict[str, Any], chat_id: int = 0) -> str:
+def request_approval(tool_name: str, args: dict[str, Any], chat_id: int = 0, agent_id: str = "") -> str:
     """Register a pending approval. Returns a task_id string like 'guard_12345'."""
     task_id = f"guard_{int(time.time() * 1000)}"
     info = GUARDED_TOOLS.get(tool_name, {"level": "unknown", "reason": "This action requires confirmation."})
@@ -59,6 +59,7 @@ def request_approval(tool_name: str, args: dict[str, Any], chat_id: int = 0) -> 
         "tool": tool_name,
         "args": args,
         "chat_id": chat_id,
+        "agent_id": agent_id,
         "level": info["level"],
         "reason": info["reason"],
         "created": time.time(),

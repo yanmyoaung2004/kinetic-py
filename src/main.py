@@ -318,7 +318,7 @@ class KinetiCBot:
             if not pending:
                 await msg.reply_text(f"No pending action found for {task_id}.")
                 return
-            agent = self.dispatcher._active_agents.get(self._agent_target)
+            agent = self.dispatcher._active_agents.get(pending.get("agent_id") or self._agent_target)
             if agent:
                 result = await agent.execute_tool_directly(pending["tool"], pending["args"])
                 await msg.reply_text(f"Approved and executed: {pending['tool']}\n\n{result[:500]}")

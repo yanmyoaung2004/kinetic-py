@@ -869,11 +869,12 @@ class AgentInstance(IAgent):
                             )
                         )
                     else:
-                        ctx = ToolContext(depth=current_depth, chat_id=self._current_chat_id)
                         from src.agents.guardrails import GUARDED_TOOLS, request_approval as _req_approval
 
+                        ctx = ToolContext(depth=current_depth, chat_id=self._current_chat_id)
+
                         if fn_name in GUARDED_TOOLS and self._current_chat_id:
-                            task_id = _req_approval(fn_name, fn_args, self._current_chat_id)
+                            task_id = _req_approval(fn_name, fn_args, self._current_chat_id, self.id)
                             result = (
                                 f"[GUARDRAIL: {task_id}] "
                                 f"{GUARDED_TOOLS[fn_name]['reason']}\n"
