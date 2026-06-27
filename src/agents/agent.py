@@ -577,13 +577,19 @@ class AgentInstance(IAgent):
         response = await self._run_think_loop(current_depth, recall=recall, on_token=on_token,
                                                force_delegate=(self.id == "main"))
 
-        # Stage 3: Polish (multi mode)
+        # Stage 3: Answer (multi mode) — full history for polished response
         if self._mode == "multi" and self._answer_providers and response:
             try:
+                recent = [m for m in self._memory.get_messages()
+                          if m.role in ("user", "assistant", "tool")][-10:]
+                history_text = "\n".join(
+                    f"{m.role.upper()}: {m.content[:200]}" for m in recent if m.content
+                )
                 polish_prompt = (
-                    "Polish this response for clarity and conciseness."
-                    " Keep all factual content. Output ONLY the polished text:\n\n"
-                    f"{response}"
+                    f"Conversation history:\n{history_text}\n\n"
+                    f"Raw response to polish:\n{response}\n\n"
+                    "Polish the response for clarity and natural language. "
+                    "Keep all facts. Output ONLY the polished text."
                 )
                 polished = await call_with_fallback(
                     self._answer_providers,
@@ -591,9 +597,7 @@ class AgentInstance(IAgent):
                         [
                             ChatMessage(
                                 role="system",
-                                content=(
-                                    "You polish responses. Make them concise and clear. Output only the polished text."
-                                ),
+                                content="You format assistant responses. Make them clear and conversational.",
                             ),
                             ChatMessage(role="user", content=polish_prompt),
                         ]
@@ -697,7 +701,18 @@ class AgentInstance(IAgent):
             available_tools = [] if is_last else tools
 
             # Inject context before each LLM call without persisting
-            msgs = list(self._memory.get_messages())
+            if self._mode == "multi" and force_delegate and current_depth == 0:
+                # Think stage: only system prompt + current user message + tool results
+                all_msgs = self._memory.get_messages()
+                idx = len(all_msgs) - 1
+                # Find the last user message (current turn)
+                while idx >= 0 and all_msgs[idx].role != "user":
+                    idx -= 1
+                # Keep system prompts + everything from this user message onward
+                msgs = [m for m in all_msgs if m.role == "system"][-2:]  # keep last 2 system (soul + protocols)
+                msgs += all_msgs[max(idx, 0):]  # current turn messages
+            else:
+                msgs = list(self._memory.get_messages())
             msgs.append(ChatMessage(role="system", content="\n".join(context_parts)))
 
             try:
