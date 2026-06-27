@@ -174,7 +174,7 @@ GLOBAL_PROTOCOLS = """
 - If a tool call fails, tell the user. Don't retry with the same arguments.
 - When you send a file via send_file, just say "Sent!" or "Here's your file."
   Do NOT include the file contents in your text response — binary content will corrupt the chat.
-- If a task requires a specialist agent, you MUST call send_message. Saying "I will delegate" without calling the tool does nothing.
+- If a task requires a specialist agent, you MUST call send_message. Just saying "I will delegate" does nothing.
 
 # SOURCES OF TRUTH
 - Emails → call read_emails. Don't guess what's in the inbox.
