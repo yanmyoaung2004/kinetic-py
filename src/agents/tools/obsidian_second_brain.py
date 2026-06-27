@@ -87,12 +87,13 @@ async def search_vault_for_context(message: str, max_notes: int = 4) -> str:
         rel = note.relative_to(root)
         try:
             content = note.read_text("utf-8", errors="replace")
+            mtime = datetime.fromtimestamp(note.stat().st_mtime).strftime("%Y-%m-%d")
             # Strip frontmatter
             content = re.sub(r"^---.*?---\s*", "", content, flags=re.DOTALL).strip()
             excerpt = content[:300].strip()
             if len(content) > 300:
                 excerpt += "..."
-            parts.append(f"  - [[{rel.stem}]]: {excerpt}")
+            parts.append(f"  - [[{rel.stem}]] (modified {mtime}): {excerpt}")
         except Exception:
             parts.append(f"  - [[{rel.stem}]]: (unreadable)")
 
