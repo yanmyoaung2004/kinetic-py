@@ -780,10 +780,17 @@ class AgentInstance(IAgent):
                 self._memory.append(ChatMessage(role="assistant", content=response.content or "", tool_calls=calls))
 
                 seen_args: set[tuple[str, str]] = set()
+                seen_tools: set[str] = set()
                 for call in calls:
                     fn_name = call.get("function", {}).get("name", "")
                     if not fn_name:
                         continue
+
+                    # Strict dedup: any tool can only be called ONCE per iteration
+                    if fn_name in seen_tools:
+                        logger.info("[TOOL] Skipping duplicate %s (already called this iteration)", fn_name)
+                        continue
+                    seen_tools.add(fn_name)
 
                     try:
                         fn_args = json.loads(call["function"]["arguments"])
