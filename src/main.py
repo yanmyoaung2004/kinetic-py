@@ -829,17 +829,20 @@ class KinetiCBot:
                 from telegram import BotCommand
                 await app.bot.set_my_commands([
                     BotCommand("help", "Show all commands"),
+                    BotCommand("models", "Show/switch provider config"),
+                    BotCommand("providers", "List provider endpoints"),
+                    BotCommand("status", "Bot uptime and agents"),
+                    BotCommand("profile", "Show what I know about you"),
+                    BotCommand("reset", "Clear current session"),
+                    BotCommand("session", "Manage conversation sessions"),
+                    BotCommand("task", "Manage scheduled tasks"),
+                    BotCommand("knowledge", "Knowledge base stats"),
+                    BotCommand("search", "Search conversation history"),
                     BotCommand("skills", "Show learned skills"),
                     BotCommand("forget_skill", "Remove a learned skill"),
                     BotCommand("forget_fact", "Remove a fact from memory"),
                     BotCommand("tts_on", "Enable voice responses"),
                     BotCommand("tts_off", "Disable voice responses"),
-                    BotCommand("models", "Show/switch provider config"),
-                    BotCommand("status", "Bot uptime and agents"),
-                    BotCommand("profile", "Show what I know about you"),
-                    BotCommand("reset", "Clear current session"),
-                    BotCommand("session", "Manage sessions"),
-                    BotCommand("search", "Search conversation history"),
                 ])
 
                 await app.initialize()
