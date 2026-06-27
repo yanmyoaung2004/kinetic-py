@@ -707,9 +707,13 @@ class AgentInstance(IAgent):
             context_parts.append(f"[CONTEXT FROM PAST CONVERSATIONS]\n{recall}")
         if force_delegate:
             context_parts.append(
-                "[DELEGATION RULE] You have the send_message tool. "
-                "For obsidian, security, coding, productivity, or system maintenance tasks, "
-                "call send_message immediately. Do NOT say you will delegate — just call the tool."
+                "[DELEGATION] You have send_message. Use it. "
+                "Do NOT say you lack tools — delegate instead.\n"
+                "  security-agent → system scan, network scan, CVE lookup, IP check, firewall, logs, processes\n"
+                "  obsidian-assistant → vault: create/search/edit notes, templates, tags\n"
+                "  coding-assistant → code: write, debug, git, opencode\n"
+                "  productivity-agent → habits, pomodoro timer\n"
+                "  system-agent → temp cleanup, disk usage, startup"
             )
 
         for iteration in range(self._MAX_ITERATIONS):
