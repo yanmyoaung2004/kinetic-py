@@ -558,7 +558,8 @@ class AgentInstance(IAgent):
             pass
 
         # Stage 2: Think loop
-        response = await self._run_think_loop(current_depth, recall=recall, on_token=on_token)
+        response = await self._run_think_loop(current_depth, recall=recall, on_token=on_token,
+                                               force_delegate=(self.id == "main"))
 
         # Stage 3: Polish (multi mode)
         if self._mode == "multi" and self._answer_providers and response:
@@ -651,6 +652,7 @@ class AgentInstance(IAgent):
     async def _run_think_loop(
         self, current_depth: int, recall: str = "",
         on_token: Callable[[str], None] | None = None,
+        force_delegate: bool = False,
     ) -> str:
         all_tools = self._tools.get_definitions()
         # Smart filter: keep core tools + tools matching message keywords
@@ -665,6 +667,12 @@ class AgentInstance(IAgent):
         context_parts = [f"[Current time: {now}]"]
         if recall:
             context_parts.append(f"[CONTEXT FROM PAST CONVERSATIONS]\n{recall}")
+        if force_delegate:
+            context_parts.append(
+                "[DELEGATION RULE] You have the send_message tool. "
+                "For obsidian, security, coding, productivity, or system maintenance tasks, "
+                "call send_message immediately. Do NOT say you will delegate — just call the tool."
+            )
 
         for iteration in range(self._MAX_ITERATIONS):
             is_last = iteration == self._MAX_ITERATIONS - 1
