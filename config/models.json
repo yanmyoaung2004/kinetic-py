@@ -5,14 +5,14 @@
   },
   "defaults": {
     "classify": {
-      "provider": "lightning",
-      "model": "lightning-ai/gpt-oss-120b"
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile"
     },
     "think": {
-      "provider": "lightning",
-      "model": "lightning-ai/gpt-oss-120b",
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
       "fallbacks": [
-        { "provider": "groq", "model": "llama-3.3-70b-versatile" },
+        { "provider": "lightning", "model": "lightning-ai/gpt-oss-120b" },
         { "provider": "opencode", "model": "opencode-go/deepseek-v4-flash" }
       ]
     },
