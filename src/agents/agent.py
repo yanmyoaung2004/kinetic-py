@@ -580,8 +580,10 @@ class AgentInstance(IAgent):
         # Stage 3: Answer (multi mode) — full history for polished response
         if self._mode == "multi" and self._answer_providers and response:
             try:
+                import os as _os
+                max_msgs = int(_os.environ.get("AGENT_MEMORY_MAX", "200"))
                 recent = [m for m in self._memory.get_messages()
-                          if m.role in ("user", "assistant", "tool")][-10:]
+                          if m.role in ("user", "assistant", "tool")][-max_msgs:]
                 history_text = "\n".join(
                     f"{m.role.upper()}: {m.content[:200]}" for m in recent if m.content
                 )
