@@ -2,7 +2,7 @@
   "settings": {
     "defaults": {
       "type": "library",
-      "provider": "lightning",
+      "provider": "groq",
       "can_delegate": false
     }
   },

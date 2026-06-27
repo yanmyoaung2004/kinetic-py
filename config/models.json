@@ -10,7 +10,11 @@
     },
     "think": {
       "provider": "lightning",
-      "model": "lightning-ai/gpt-oss-120b"
+      "model": "lightning-ai/gpt-oss-120b",
+      "fallbacks": [
+        { "provider": "groq", "model": "llama-3.3-70b-versatile" },
+        { "provider": "opencode", "model": "opencode-go/deepseek-v4-flash" }
+      ]
     },
     "tool_call": {
       "provider": "lightning",
