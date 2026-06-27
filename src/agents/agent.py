@@ -534,8 +534,12 @@ class AgentInstance(IAgent):
         # Stage 1.5: Recall relevant past memories (injected into think loop, not persisted)
         recall = await self._recall_memories(message)
 
-        # Stage 1.6: Recall relevant Obsidian notes (auto-indexing)
-        if os.environ.get("OBSIDIAN_VAULT_PATH"):
+        # Stage 1.6: Recall relevant Obsidian notes (auto-indexing, only when relevant)
+        if os.environ.get("OBSIDIAN_VAULT_PATH") and any(kw in message.lower() for kw in
+            ["note", "notes", "vault", "obsidian", "brain", "knowledge", "memory",
+             "remember", "recall", "find", "search", "topic", "tag", "flashcard",
+             "journal", "daily", "template", "second brain", "idea", "thought",
+             "project", "meeting", "book", "article", "paper", "research"]):
             try:
                 vault_ctx = await search_vault_for_context(message)
                 if vault_ctx:
