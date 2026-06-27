@@ -490,6 +490,12 @@ class AgentInstance(IAgent):
         if self.config.type == "ephemeral":
             self._memory.destroy()
 
+    async def execute_tool_directly(self, tool_name: str, tool_args: dict) -> str:
+        """Execute a single tool directly (used for approving guarded actions)."""
+        ctx = ToolContext(depth=0, chat_id=self._current_chat_id)
+        result = await self._tools.execute(tool_name, tool_args, ctx)
+        return result
+
     async def process(
         self, message: str, current_depth: int = 0, chat_id: int | None = None,
         on_token: Callable[[str], None] | None = None,
@@ -864,7 +870,17 @@ class AgentInstance(IAgent):
                         )
                     else:
                         ctx = ToolContext(depth=current_depth, chat_id=self._current_chat_id)
-                        result = await self._tools.execute(fn_name, fn_args, ctx)
+                        from src.agents.guardrails import GUARDED_TOOLS, request_approval as _req_approval
+
+                        if fn_name in GUARDED_TOOLS and self._current_chat_id:
+                            task_id = _req_approval(fn_name, fn_args, self._current_chat_id)
+                            result = (
+                                f"[GUARDRAIL: {task_id}] "
+                                f"{GUARDED_TOOLS[fn_name]['reason']}\n"
+                                f"Use /approve {task_id} to confirm, or /reject {task_id} to cancel."
+                            )
+                        else:
+                            result = await self._tools.execute(fn_name, fn_args, ctx)
                         self._memory.append(ChatMessage(role="tool", tool_call_id=call.get("id", ""), content=result))
                         # If opencode was called, stop — it runs async, no need to continue
                         if fn_name == "call_opencode":

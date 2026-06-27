@@ -311,6 +311,42 @@ class KinetiCBot:
                 await msg.reply_text("No profile extracted yet. Send me a few messages and I'll learn about you.")
             return
 
+        if cmd == "/approve" and len(parts) >= 2:
+            from src.agents.guardrails import consume as _consume, list_pending as _list_pending
+            task_id = parts[1]
+            pending = _consume(task_id)
+            if not pending:
+                await msg.reply_text(f"No pending action found for {task_id}.")
+                return
+            agent = self.dispatcher._active_agents.get(self._agent_target)
+            if agent:
+                result = await agent.execute_tool_directly(pending["tool"], pending["args"])
+                await msg.reply_text(f"Approved and executed: {pending['tool']}\n\n{result[:500]}")
+            else:
+                await msg.reply_text("Agent not available.")
+            return
+
+        if cmd == "/reject" and len(parts) >= 2:
+            from src.agents.guardrails import consume as _r_consume
+            pending = _r_consume(parts[1])
+            if pending:
+                await msg.reply_text(f"Cancelled: {pending['tool']}")
+            else:
+                await msg.reply_text("No pending action found.")
+            return
+
+        if cmd == "/approve":
+            from src.agents.guardrails import list_pending as _lp
+            pending = _lp(chat_id)
+            if not pending:
+                await msg.reply_text("No pending actions.")
+            else:
+                lines = ["Pending approvals:"]
+                for p in pending:
+                    lines.append(f"  /approve {p['task_id']} - {p['tool']} ({p['reason'][:60]})")
+                await msg.reply_text("\n".join(lines))
+            return
+
         if cmd == "/skills":
             from src.agents.skill_learner import list_skills
             skills = await list_skills()
@@ -821,6 +857,8 @@ class KinetiCBot:
                             "forget_fact",
                             "tts_on",
                             "tts_off",
+                            "approve",
+                            "reject",
                         ],
                         self.handle_command,
                     )
@@ -843,6 +881,8 @@ class KinetiCBot:
                     BotCommand("forget_fact", "Remove a fact from memory"),
                     BotCommand("tts_on", "Enable voice responses"),
                     BotCommand("tts_off", "Disable voice responses"),
+                    BotCommand("approve", "Approve a pending action"),
+                    BotCommand("reject", "Reject a pending action"),
                 ])
 
                 await app.initialize()
