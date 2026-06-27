@@ -620,8 +620,10 @@ class AgentInstance(IAgent):
                 )
                 if skill:
                     logger.info("[SKILL] Auto-learned skill: %s", skill)
-            except Exception:
-                pass
+                else:
+                    logger.info("[SKILL] Not saved (len=%d): %s", len(self._last_tool_sequence), self._last_tool_sequence)
+            except Exception as e:
+                logger.warning("[SKILL] Error: %s", e)
 
         # Background tasks (deferred, never block response)
         async def _background() -> None:
@@ -820,7 +822,7 @@ class AgentInstance(IAgent):
                     seen_args.add(args_key)
 
                     logger.info("[TOOL] %s -> %s", self.id, fn_name)
-                    if fn_name not in ("get_current_time",) and fn_name not in self._last_tool_sequence:
+                    if fn_name not in ("get_current_time",):
                         self._last_tool_sequence.append(fn_name)
 
                     if fn_name == "spawn_specialist":
