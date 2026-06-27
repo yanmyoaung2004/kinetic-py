@@ -536,6 +536,8 @@ class KinetiCBot:
             accumulated += token
             if tts_mode:
                 return
+            if tts_mode:
+                return
             now_t = __import__("time").time()
             if now_t - last_edit > 0.8:
                 last_edit = now_t
@@ -552,6 +554,7 @@ class KinetiCBot:
         typing = asyncio.create_task(_typing_indicator(msg.chat, task))
         try:
             response = await task
+            response = self._clean_tool_echo(response)
             if not tts_mode:
                 await stream_msg.delete()
                 safe = _convert_markdown(response or "(no response)")
@@ -559,6 +562,7 @@ class KinetiCBot:
             await self._send_pending_files(chat_id, update)
             if tts_mode and response:
                 await self._send_tts(msg, response)
+            # Filter JSON tool call echoes from final response
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
         finally:
@@ -636,6 +640,16 @@ class KinetiCBot:
                 await msg.reply_audio(audio=InputFile(bytes(audio_data), filename="response.mp3"))
         except Exception:
             pass
+
+    @staticmethod
+    def _clean_tool_echo(response: str | None) -> str | None:
+        """Filter out JSON tool call echoes from LLM responses."""
+        if not response or not response.strip():
+            return response
+        stripped = response.strip()
+        if stripped.startswith("{") and ("\"target\"" in stripped or "\"message\"" in stripped):
+            return None
+        return response
 
     async def handle_file(self, update: Update, context: Any = None) -> None:
         msg = update.message
@@ -724,6 +738,7 @@ class KinetiCBot:
             task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
             response = await task
+            response = self._clean_tool_echo(response)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
             if chat_id in _tts_enabled_chats:
@@ -766,6 +781,7 @@ class KinetiCBot:
             task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
             response = await task
+            response = self._clean_tool_echo(response)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
             if chat_id in _tts_enabled_chats:
