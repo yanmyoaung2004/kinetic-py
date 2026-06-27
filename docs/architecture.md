@@ -106,14 +106,34 @@ This replaces the old manual `/perfect` workflow system with automatic, persiste
 
 ---
 
-## Processing Flow
+## Multi-Stage LLM Routing
 
+K.I.N.E.T.I.C. uses a multi-stage pipeline where each stage uses a different provider optimized for its job:
+
+| Stage | Provider (chain) | Context | Purpose |
+|-------|-----------------|---------|---------|
+| **Classify** | Groq → Lightning | Message only (~100 tokens) | Determine intent (question/command/chitchat/task) |
+| **Think** | Cloudflare → Groq → Lightning | Lean: system + message + tools (~4K tokens) | Decide what tools to call, execute tools |
+| **Answer** | Lightning → Groq | Full: AGENT_MEMORY_MAX messages (~4-20K tokens) | Format final response with full context |
+
+The **think stage is lean** — it receives only the system prompt, tool definitions, and the current user message. No conversation history. This keeps token usage low (~4K) and allows Cloudflare's 32K context window to work comfortably.
+
+The **answer stage** receives the full conversation history (controlled by `AGENT_MEMORY_MAX`, default 200 messages) plus the raw response from the think stage, and produces a polished, context-aware final response.
+
+### Processing Flow
+
+```
 1. Message arrives (Telegram / Web UI / Voice Chat)
-2. Agent loads SOUL + history + profile
-3. **Background context**: memory recall + Obsidian auto-indexing + matching learned skills
-4. **Think loop** (up to 3 iterations):
-   - LLM receives history + filtered tool definitions
+2. Background context: memory recall + Obsidian auto-indexing + matching learned skills
+3. Stage 1 — Classify: "question" / "command" / "chitchat" / "task"
+   → If chitchat: responds directly without tools
+4. Stage 2 — Think loop (up to 3 iterations):
+   - LLM receives lean context (no history) + tool definitions
    - Tool call → execute → loop
-   - Text response → return
-5. Response is sent to user (text + optional TTS)
-6. **Background tasks** (deferred): profile extraction, context compression, knowledge injection, skill learning
+   - Text response → proceed to answer stage
+5. Stage 3 — Answer: formats final response with full history + tool results
+6. Response sent to user (text + optional TTS)
+7. Background tasks (deferred): profile extraction, context compression, knowledge injection, skill learning
+```
+
+In **single mode** (`"mode"` not set), all stages collapse into one think loop with full history — same behavior as before.

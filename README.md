@@ -4,74 +4,98 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 
-**Autonomous AI assistant with Telegram bot, voice chat, 80+ tools, RAG knowledge base, and multi-agent pipelines.**
+**Autonomous AI assistant with Telegram bot, voice chat, 80+ tools, RAG knowledge base, multi-agent pipelines, and multi-stage LLM routing.**
 
-K.I.N.E.T.I.C. is a modular AI agent framework that runs on your own machine. Chat via Telegram, speak via push-to-talk voice chat, or use the web dashboard. It can scan your system for vulnerabilities, manage your Obsidian vault, track habits and pomodoro sessions, look up CVEs, check IPs against threat feeds, and more — all through a unified agent with persistent memory.
+K.I.N.E.T.I.C. is a modular AI agent framework that runs on your own machine. Chat via Telegram, speak via push-to-talk voice chat, or use the web dashboard. It can scan your system for vulnerabilities, manage your Obsidian vault, track habits and pomodoro sessions, look up CVEs, check IPs against threat feeds, and more — all through a unified multi-agent system with persistent memory and auto-learning.
 
 ---
 
 ## Architecture
 
-K.I.N.E.T.I.C. separates orchestration from execution through three layers:
+### Multi-Stage LLM Routing
 
-### 1. The Dispatcher (Orchestrator)
+K.I.N.E.T.I.C. uses a **multi-stage pipeline** where each stage is handled by a different provider optimized for its job:
 
-The central coordinator manages agent lifecycle:
-
-- **Agent Registry** — lazy-loads agents from `config/agents.json`, evicts after 5 min idle
-- **Session Management** — independent conversation sessions with per-session history and profiles
-- **Sub-agent Spawning** — library agents can spawn ephemeral specialists (max 3, depth 3)
-
-### 2. The Agent (Execution)
-
-Each agent runs a think loop with tool access:
-
-- **SOUL personality layer** — per-agent `SOUL.md` loaded as system prompt
-- **ReAct loop** — up to 3 iterations of tool call → execute → observe
-- **80+ tools** — all registered globally, restricted per-agent via tool whitelist
-- **Background processing** — profile extraction and context compression run deferred, never block the response
-
-### 3. Storage & Memory
-
-- **Persistent history** — JSONL at `agents_workspace/<agentId>/history.jsonl`
-- **User profile** — LLM extracts permanent facts every 3 messages; cross-session via global profile
-- **Knowledge base** — SQLite vector store with cosine similarity for RAG
-- **Task scheduler** — one-time and recurring tasks persisted to disk
+```
+User message
+  │
+  ├── 1. Classify (Groq) — determines intent: question / command / chitchat / task
+  │     No history, just the message. ~100 tokens.
+  │
+  ├── 2. Think (Cloudflare → Groq → Lightning) — decides what tools to call
+  │     Lean context: system prompt + current message only. No history. ~4K tokens.
+  │     Falls back through providers if tool calling isn't supported.
+  │
+  ├── 3. Answer (Lightning → Groq) — formats the final response
+  │     Full history + tool results for context-aware formatting.
+  │     History length controlled by AGENT_MEMORY_MAX env var (default 200).
+  │
+  └── Background tasks (deferred, never block response):
+        ├── User profile extraction (every 3 msgs)
+        ├── Knowledge injection to Obsidian vault (every 10 msgs)
+        ├── Context compression
+        ├── Skill learning (auto after multi-step success)
+        └── SOUL evolution
+```
 
 See [`docs/architecture.md`](docs/architecture.md) for full architecture details.
 
 ---
 
-## Capabilities
+### Multi-Agent Delegation
 
-K.I.N.E.T.I.C. ships with **80+ tools** across all categories. Full details in [`docs/capabilities.md`](docs/capabilities.md).
+The main agent is a **thin orchestrator** with ~15 core tools. Specialized tasks are delegated via `send_message` to sub-agents.
 
-### Security (28 tools)
-System vulnerability scanning, network monitoring, process management, firewall control, port scanning, WiFi audit, user audit, USB tracking, CVE lookup, IP threat check, Defender scan, persistence analysis, and more.
+```
+main agent (orchestrator, 15 tools)
+  ├── obsidian-assistant    [15 tools] — vault: create, search, link, template, tags
+  ├── coding-assistant      [21 tools] — code: write, debug, git, opencode
+  ├── security-agent        [35 tools] — system: scan, firewall, CVE, IP check, network
+  ├── productivity-agent    [11 tools] — habits, pomodoro
+  └── system-agent          [ 4 tools] — temp cleanup, disk, startup
+```
 
-### Voice Chat
-- **Push-to-talk** — press Alt+V, speak, release, hear response
-- **System tray** — colored status icon (idle/recording/processing/speaking)
-- **Dual STT** — Google Web Speech (online) or faster-whisper (offline, ~75MB)
-- **Edge TTS** — Microsoft Neural voices with configurable speed
-- **Interrupt** — press hotkey during playback to stop and re-record
+Each specialist has only the tools it needs. The main agent delegates rather than doing specialist work itself.
 
-### Productivity (13 tools)
-Pomodoro timer, habit tracker with streaks, Obsidian vault templates, recent notes, tag cloud.
+---
 
-### System Maintenance (3 tools)
-Temp file cleanup, disk usage analysis, startup program management.
+### Self-Improving Learning Loop
 
-### Network (4 tools)
-DNS lookup (all record types), traceroute, domain WHOIS, bandwidth stats.
+After every successful multi-step response (2+ tool calls), the system automatically generates a reusable skill document:
 
-### Telegram Bot
-- Chat with AI, file uploads, voice message transcription
-- `/tts_on` / `/tts_off` — toggle automatic voice responses
-- Session management, task scheduler, knowledge base queries
+- **Trigger** — background task after multi-step success
+- **Extract** — the user's request, tool sequence, and agent used
+- **Generate** — a SOUL.md skill document at `config/skills/learned/<topic>.md`
+- **Reuse** — on future matching queries, the skill is injected as system prompt context
 
-### Web Dashboard
-FastAPI at `localhost:18789` with chat UI, status, sessions, knowledge base, pipeline viewer, and provider config.
+Commands: `/skills` (list), `/forget_skill <name>` (remove)
+
+---
+
+### Memory & Learning
+
+| Layer | What | How | Cost |
+|-------|------|-----|------|
+| **Conversation history** | Last 500 messages | JSONL file, trimmed oldest-first | ~20-50K tokens (dominant cost) |
+| **User profile** | Your facts & preferences | Extracted by LLM every 3 msgs, persists across sessions | ~200 tokens |
+| **Vector RAG** | Past memories as embeddings | Cosine similarity search, recalled before each response | ~300 tokens |
+| **Obsidian auto-indexing** | Your vault notes | Auto-searched on relevant queries | ~500 tokens (conditional) |
+| **Learned skills** | Successful tool sequences | Auto-saved as SOUL.md, injected on matching queries | ~300 tokens (conditional) |
+
+See [`docs/capabilities.md`](docs/capabilities.md) for the full tool list (80+ tools).
+
+---
+
+### Provider Configuration
+
+Configured in `config/models.json`. Each stage has its own provider with fallback chain:
+
+```
+classify:  Groq → Lightning
+think:     Cloudflare → Groq → Lightning
+tool_call: Lightning → Groq
+answer:    Lightning → Groq
+```
 
 See [`docs/setup.md`](docs/setup.md) for installation and configuration.
 
@@ -122,63 +146,23 @@ Requires admin for global hotkey.
 
 ---
 
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show all commands |
-| `/tts_on` | Enable voice responses |
-| `/tts_off` | Disable voice responses |
-| `/models` | Show/switch provider config |
-| `/status` | Bot uptime and agent info |
-| `/profile` | Show what I know about you |
-| `/forget_fact <keyword>` | Remove a fact from memory |
-| `/reset` | Clear current conversation |
-| `/session` | Manage conversation sessions |
-| `/task list` | Show scheduled tasks |
-
----
-
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TELEGRAM_BOT_TOKEN` | — | Telegram bot token (required) |
 | `API_PORT` | `18789` | FastAPI server port |
+| `AGENT_MEMORY_MAX` | `200` | Max history messages for answer stage |
 | `HIDE_CONSOLE` | `true` | Hide terminal windows |
 | `PTT_KEY` | `alt+v` | Push-to-talk hotkey |
 | `TTS_VOICE` | `en-GB-RyanNeural` | Edge TTS voice |
 | `TTS_SPEED` | `+20%` | TTS speaking rate |
 | `STT_BACKEND` | `google` | `google` or `offline` |
 | `RATE_LIMIT_RETRY_SECONDS` | `3` | LLM 429 retry delay |
-| `AGENT_MEMORY_MAX` | `500` | Max history messages |
-
----
-
-## Deployment
-
-### Docker
-
-```bash
-docker compose up -d --build
-```
-
-Mounts `config/`, `agents_workspace/`, `agent_sandbox/` as volumes. Reads `.env` for secrets.
-
----
-
-## Testing
-
-```bash
-# Regression test (36 checks)
-.venv\Scripts\python.exe regression_test.py
-
-# Lint
-ruff check .
-
-# Type check
-mypy src/
-```
+| `LIGHTNING_API_KEY` | — | Lightning provider key |
+| `GROQ_API_KEY` | — | Groq provider key |
+| `CLOUD_FLARE_API_KEY` | — | Cloudflare Workers AI key |
+| `CLOUD_FLARE_USER_ID` | — | Cloudflare account ID |
 
 ---
 
@@ -189,6 +173,7 @@ mypy src/
 | [`docs/architecture.md`](docs/architecture.md) | System architecture and processing flow |
 | [`docs/capabilities.md`](docs/capabilities.md) | Full tool list and feature details |
 | [`docs/setup.md`](docs/setup.md) | Installation and configuration guide |
+| [`docs/learning-loop-idea.md`](docs/learning-loop-idea.md) | Auto-learning skill system design |
 
 ---
 

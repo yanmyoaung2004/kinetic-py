@@ -118,6 +118,16 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 - Daemon ticks every 10s, dispatches to agent, sends to Telegram
 - Commands: `/task list`, `/task remove <id>`
 
+## Multi-Stage LLM Routing
+
+| Stage | Provider (fallback chain) | Context | Tokens |
+|-------|--------------------------|---------|--------|
+| **classify** | Groq → Lightning | Message only | ~100 |
+| **think** | Cloudflare → Groq → Lightning | Lean (system + message + tools) | ~4K |
+| **answer** | Lightning → Groq | Full history (AGENT_MEMORY_MAX) | ~4-20K |
+
+The think stage receives no history — only current message + tools. This keeps Cloudflare within its 32K context window.
+
 ## LLM Provider System
 
 - **Unified client** — works with any OpenAI-compatible endpoint
