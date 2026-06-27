@@ -23,7 +23,6 @@
         "download_url",
         "send_file",
         "send_message",
-        "spawn_specialist",
         "get_current_time",
         "web_search",
         "schedule_task",

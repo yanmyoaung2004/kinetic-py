@@ -175,6 +175,7 @@ GLOBAL_PROTOCOLS = """
 - When you send a file via send_file, just say "Sent!" or "Here's your file."
   Do NOT include the file contents in your text response — binary content will corrupt the chat.
 - If a task requires a specialist agent, you MUST call send_message. Just saying "I will delegate" does nothing.
+- Use send_message to registered agents instead of spawn_specialist for specialized tasks.
 
 # SOURCES OF TRUTH
 - Emails → call read_emails. Don't guess what's in the inbox.
