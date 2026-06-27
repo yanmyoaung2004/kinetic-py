@@ -25,10 +25,16 @@
         "send_message",
         "spawn_specialist",
         "get_current_time",
+        "web_search",
         "schedule_task",
         "list_scheduled_tasks",
         "remove_scheduled_task",
-        "tts_speak"
+        "tts_speak",
+        "read_emails",
+        "read_email_body",
+        "send_email",
+        "reply_to_email",
+        "create_presentation"
       ]
     },
     {
