@@ -271,6 +271,28 @@ class UnifiedProvider:
         )
 
 
+def _log_error_detail(model: str, err: Exception) -> None:
+    """Log detailed error information from LLM provider calls."""
+    import json as _j
+    details = {"model": model, "error_type": type(err).__name__, "error": str(err)}
+
+    if hasattr(err, "response"):
+        resp = err.response  # type: ignore[union-attr]
+        details["status_code"] = resp.status_code
+        try:
+            body = resp.json()
+            details["response_body"] = body
+        except Exception:
+            details["response_text"] = resp.text[:500]
+
+    if hasattr(err, "request"):
+        req = err.request  # type: ignore[union-attr]
+        details["url"] = str(req.url)
+        details["method"] = req.method
+
+    logger.error("[PROVIDER] %s", _j.dumps(details, indent=2, default=str))
+
+
 async def call_with_fallback(
     providers: list[UnifiedProvider],
     call_fn: Callable[[UnifiedProvider], Any],
@@ -292,6 +314,8 @@ async def call_with_fallback(
                         "[RATE_LIMIT] %s rate limited (429). Retrying in %ds... (attempt %d/%d)",
                         provider.model, wait, attempt + 1, max_retries,
                     )
+                    # Log full error details for debugging
+                    _log_error_detail(provider.model, err)
                     await asyncio.sleep(wait)
                     continue
                 msg = f"{provider.model}: {err}"
@@ -302,5 +326,7 @@ async def call_with_fallback(
                     err,
                     "Trying fallback..." if i < len(providers) - 1 else "No more fallbacks.",
                 )
+                # Log full error details
+                _log_error_detail(provider.model, err)
                 break
     raise RuntimeError("All providers failed:\n" + "\n".join(errors))
