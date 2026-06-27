@@ -543,22 +543,17 @@ class AgentInstance(IAgent):
             except Exception:
                 pass
 
-        # Stage 1.7: Recall learned workflows and inject as context
+        # Stage 1.7: Inject matching learned skills as context
         try:
-            from src.agents.learning import find_workflows
-            workflows = await find_workflows(message)
-            if workflows:
-                best = workflows[0]
-                seq = " → ".join(best["tool_sequence"])
-                logger.info("[LEARN] >>> Using saved workflow '%s': %s", best["trigger"], seq)
+            from src.agents.skill_learner import find_matching_skills
+            skills = await find_matching_skills(message)
+            if skills:
+                skill_text = "\n\n".join(s["content"] for s in skills)
                 self._memory.append(ChatMessage(
                     role="system",
-                    content=(
-                        f"[LEARNED WORKFLOW] For '{best['trigger']}' tasks,"
-                        f" the proven sequence is: {seq}."
-                        " Stick to this sequence. Do not call unrelated tools."
-                    ),
+                    content=f"[LEARNED SKILLS]\n{skill_text}",
                 ))
+                logger.info("[SKILL] Injected %d matching skills", len(skills))
         except Exception:
             pass
 
@@ -597,17 +592,19 @@ class AgentInstance(IAgent):
             except Exception:
                 pass
 
-        # Auto-feedback: only ask if this tool sequence isn't already learned
-        if self._last_tool_sequence and current_depth == 0:
+        # Auto-learn: save multi-step tool sequences as reusable skills
+        if self._last_tool_sequence and len(self._last_tool_sequence) >= 2 and current_depth == 0:
             try:
-                from src.agents.learning import find_workflow_by_sequence
-                already = await find_workflow_by_sequence(self._last_tool_sequence)
-                if already:
-                    logger.info("[LEARN] Skipping feedback for already-learned workflow: %s", already["trigger"])
-                else:
-                    response += "\n\n---\nAre you satisfied? (/perfect to save)"
+                from src.agents.skill_learner import extract_and_save_skill
+                skill = await extract_and_save_skill(
+                    self._last_user_message,
+                    self._last_tool_sequence,
+                    self.id,
+                )
+                if skill:
+                    logger.info("[SKILL] Auto-learned skill: %s", skill)
             except Exception:
-                response += "\n\n---\nAre you satisfied? (/perfect to save)"
+                pass
 
         # Background tasks (deferred, never block response)
         async def _background() -> None:

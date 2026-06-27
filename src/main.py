@@ -93,10 +93,10 @@ COMMANDS_HELP = """
 /knowledge list — List indexed documents
 /knowledge remove <id> — Remove a document from the index
 /search <query> — Search conversation history
-/perfect — Learn from the last successful workflow
+/skills — Show learned skills
 /forget — Remove a fact from my memory (e.g., /forget_fact my location)
-/forget <trigger> — Forget a learned workflow
-/workflows — Show all learned workflows
+/forget_skill <name> — Remove a learned skill
+
 /tts_on — Enable voice responses (TTS mode)
 /tts_off — Disable voice responses (text only)
 """
@@ -821,10 +821,9 @@ class KinetiCBot:
                             "task",
                             "knowledge",
                             "search",
-                            "perfect",
-                            "forget",
+                            "skills",
+                            "forget_skill",
                             "forget_fact",
-                            "workflows",
                             "tts_on",
                             "tts_off",
                         ],
