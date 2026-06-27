@@ -33,7 +33,14 @@
         "read_email_body",
         "send_email",
         "reply_to_email",
-        "create_presentation"
+        "create_presentation",
+        "security_kill_process",
+        "security_block_ip",
+        "security_unblock_ip",
+        "security_remove_firewall_rule",
+        "security_defender_set",
+        "system_temp_cleanup",
+        "system_startup_optimize"
       ]
     },
     {
@@ -104,9 +111,6 @@
         "security_scan_system",
         "security_scan_network",
         "security_process_info",
-        "security_kill_process",
-        "security_block_ip",
-        "security_unblock_ip",
         "security_check_logs",
         "security_set_watch",
         "security_list_watches",
@@ -127,14 +131,11 @@
         "security_defender_scan",
         "security_hosts_check",
         "security_browser_audit",
-        "security_remove_firewall_rule",
-        "security_defender_set",
         "security_elevate_bot",
         "network_dns_lookup",
         "network_traceroute",
         "network_whois",
         "network_bandwidth",
-        "download_url",
         "send_message"
       ]
     },
