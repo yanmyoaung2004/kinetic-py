@@ -1129,7 +1129,7 @@ Conversation:
                     "model": args["model"],
                 },
             )
-            return await self._dispatcher.dispatch(sub_id, args["task"], current_depth + 1)
+            return await self._dispatcher.dispatch(sub_id, args["task"], current_depth + 1, self._current_chat_id)
         except Exception as e:
             return f"CRITICAL_ERROR: Failed to spawn specialist: {e}"
 
