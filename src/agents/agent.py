@@ -668,8 +668,9 @@ class AgentInstance(IAgent):
                     await self._evolve_soul()
                 except Exception:
                     pass
-            # Memory compaction every 5 messages — dedup profiles, workflows, histories
-            if msg_count > 0 and msg_count % 5 == 0:
+            # Memory compaction — dedup profiles, workflows, histories
+            compact_interval = int(os.environ.get("MEMORY_COMPACT_INTERVAL", "5"))
+            if msg_count > 0 and msg_count % compact_interval == 0:
                 try:
                     await self._compact_memory()
                 except Exception:
