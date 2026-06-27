@@ -1,0 +1,22 @@
+{
+  "skills": [
+    {
+      "name": "network_create_note_about",
+      "trigger": "check my network, look up CVE-2024-21626, and create a note about it",
+      "trigger_keywords": [
+        "check",
+        "network",
+        "look",
+        "create",
+        "note",
+        "about"
+      ],
+      "tool_sequence": [
+        "send_message",
+        "send_message"
+      ],
+      "path": "config\\skills\\learned\\network_create_note_about.md",
+      "created": "2026-06-27T13:13:18.284200"
+    }
+  ]
+}

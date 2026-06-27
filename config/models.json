@@ -14,7 +14,7 @@
     },
     "think": {
       "provider": "cloudflare",
-      "model": "@cf/openai/gpt-oss-120b",
+      "model": " @cf/google/gemma-4-26b-a4b-it",
       "fallbacks": [
         { "provider": "lightning", "model": "lightning-ai/gpt-oss-120b" }
       ]
@@ -22,16 +22,12 @@
     "tool_call": {
       "provider": "lightning",
       "model": "lightning-ai/gpt-oss-120b",
-      "fallbacks": [
-        { "provider": "groq", "model": "llama-3.3-70b-versatile" }
-      ]
+      "fallbacks": [{ "provider": "groq", "model": "llama-3.3-70b-versatile" }]
     },
     "answer": {
       "provider": "lightning",
       "model": "lightning-ai/gpt-oss-120b",
-      "fallbacks": [
-        { "provider": "groq", "model": "llama-3.3-70b-versatile" }
-      ]
+      "fallbacks": [{ "provider": "groq", "model": "llama-3.3-70b-versatile" }]
     }
   },
   "providers": {
