@@ -707,13 +707,20 @@ class AgentInstance(IAgent):
             context_parts.append(f"[CONTEXT FROM PAST CONVERSATIONS]\n{recall}")
         if force_delegate:
             context_parts.append(
-                "[DELEGATION] You have send_message. Use it. "
-                "Do NOT say you lack tools — delegate instead.\n"
-                "  security-agent → system scan, network scan, CVE lookup, IP check, firewall, logs, processes\n"
-                "  obsidian-assistant → vault: create/search/edit notes, templates, tags\n"
-                "  coding-assistant → code: write, debug, git, opencode\n"
-                "  productivity-agent → habits, pomodoro timer\n"
-                "  system-agent → temp cleanup, disk usage, startup"
+                "[AGENT CAPABILITIES] Delegate via send_message. Do NOT try to handle these yourself.\n"
+                "  security-agent: vulnerability scanning, network monitoring, firewall management, threat intelligence (CVE lookup, IP reputation), "
+                "event log analysis, system auditing (users, startup, USB, WiFi, browser policies, scheduled tasks), "
+                "Defender management, persistence checks, hosts file inspection\n"
+                "  obsidian-assistant: create/search/edit Obsidian vault notes, daily notes, templates, "
+                "tag management, graph queries, flashcard system, canvas management\n"
+                "  coding-assistant: write/edit/delete code files, run code, execute commands, git operations, "
+                "OpenCode integration for project-level work\n"
+                "  productivity-agent: habit tracking (add/log/list/remove habits with streaks), "
+                "Pomodoro timer (start/stop/status/stats)\n"
+                "  system-agent: temporary file cleanup, disk usage analysis, startup program management\n"
+                "  You have: file ops, email, web search, scheduling, presentations, "
+                "kill_process (with approval), block/unblock IP (with approval), defender_set (with approval), "
+                "remove_firewall_rule (with approval)"
             )
 
         for iteration in range(self._MAX_ITERATIONS):
