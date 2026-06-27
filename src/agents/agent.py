@@ -621,7 +621,7 @@ class AgentInstance(IAgent):
                 if skill:
                     logger.info("[SKILL] Auto-learned skill: %s", skill)
                 else:
-                    logger.info("[SKILL] Not saved (len=%d): %s", len(self._last_tool_sequence), self._last_tool_sequence)
+                    logger.info("[SKILL] Not saved (len=%d)", len(self._last_tool_sequence))
             except Exception as e:
                 logger.warning("[SKILL] Error: %s", e)
 
