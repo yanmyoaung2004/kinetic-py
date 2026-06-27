@@ -344,7 +344,17 @@ class AgentInstance(IAgent):
                 lines.extend(f"- {f}" for f in filtered)
                 if profile.preferences:
                     lines.append(f"\nPreferences: {', '.join(profile.preferences)}")
-                self._memory.append(ChatMessage(role="system", content="\n".join(lines)))
+                profile_msg = ChatMessage(role="system", content="\n".join(lines))
+                # Replace existing profile if present, otherwise append
+                existing = self._memory.get_messages()
+                replaced = False
+                for i, m in enumerate(existing):
+                    if m.role == "system" and m.content and m.content.startswith("[USER PROFILE]"):
+                        existing[i] = profile_msg
+                        replaced = True
+                        break
+                if not replaced:
+                    self._memory.append(profile_msg)
 
         # Build tool registry
         self._tools = ToolRegistry()
