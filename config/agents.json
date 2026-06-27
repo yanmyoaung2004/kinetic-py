@@ -129,6 +129,7 @@
         "network_traceroute",
         "network_whois",
         "network_bandwidth",
+        "download_url",
         "send_message"
       ]
     },
