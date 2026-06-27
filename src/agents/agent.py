@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -236,6 +237,13 @@ _CORE_TOOLS = {
     "index_file", "index_url", "index_github", "scrape_and_index", "knowledge_stats",
     "tts_speak",
 }
+_ESSENTIAL_TOOLS = {"send_message", "get_current_time", "spawn_specialist"}
+_CORE_KEYWORDS = {
+    "file", "read", "write", "edit", "delete", "download", "code", "run", "execute",
+    "email", "search", "browser", "web", "schedule", "monitor", "image", "git",
+    "zip", "news", "weather", "knowledge", "memory", "briefing", "presentation",
+    "skill", "pipeline", "tts", "speak", "youtube",
+}
 
 _TOOL_GROUPS = [
     ("security_", {"scan", "vulnerability", "virus", "malware", "defender", "firewall",
@@ -250,6 +258,51 @@ _TOOL_GROUPS = [
     ("system_", {"disk", "temp", "cleanup", "startup"}),
     ("network_", {"dns", "traceroute", "whois", "bandwidth"}),
 ]
+
+_GREETING_PATTERNS = re.compile(
+    r"^(hey|hello|hi|yo|sup|good\s*morning|good\s*evening|good\s*afternoon|"
+    r"what's\s*up|howdy|greetings)\W*$",
+    re.IGNORECASE,
+)
+_THANKS_PATTERNS = re.compile(
+    r"^(thanks|thank\s*you|thx|ty|appreciate\s*it|got\s*it|understood|ok\s*thanks)\W*$",
+    re.IGNORECASE,
+)
+_BYE_PATTERNS = re.compile(
+    r"^(bye|goodbye|see\s*ya|cya|later|gotta\s*go|i'm\s*done)\W*$",
+    re.IGNORECASE,
+)
+_GREETING_RESPONSES = [
+    "Hey there! How can I help you today?",
+    "Hi! What can I do for you?",
+    "Hello! Ready to help — what do you need?",
+    "Hey! What's on your mind?",
+]
+_THANKS_RESPONSES = [
+    "You're welcome! Let me know if you need anything else.",
+    "Happy to help! Anything else?",
+    "No problem! I'm here if you need me.",
+    "Glad I could help!",
+]
+_BYE_RESPONSES = [
+    "Goodbye! Talk to you later.",
+    "See you! Take care.",
+    "Catch you later!",
+    "Bye! Have a great day.",
+]
+
+
+def _is_trivial_message(text: str) -> tuple[bool, str]:
+    """Check if message is a greeting/thanks/bye that needs no LLM processing.
+    Returns (is_trivial, response)."""
+    t = text.strip().rstrip(".!?")
+    if _GREETING_PATTERNS.match(t):
+        return True, random.choice(_GREETING_RESPONSES)
+    if _THANKS_PATTERNS.match(t):
+        return True, random.choice(_THANKS_RESPONSES)
+    if _BYE_PATTERNS.match(t):
+        return True, random.choice(_BYE_RESPONSES)
+    return False, ""
 
 
 class AgentInstance(IAgent):
@@ -493,13 +546,14 @@ class AgentInstance(IAgent):
 
     async def execute_tool_directly(self, tool_name: str, tool_args: dict) -> str:
         """Execute a single tool directly (used for approving guarded actions)."""
-        ctx = ToolContext(depth=0, chat_id=self._current_chat_id)
+        ctx = ToolContext(depth=0, chat_id=self._current_chat_id, on_status=self._on_status)
         result = await self._tools.execute(tool_name, tool_args, ctx)
         return result
 
     async def process(
         self, message: str, current_depth: int = 0, chat_id: int | None = None,
         on_token: Callable[[str], None] | None = None,
+        on_status: Callable[[str], None] | None = None,
     ) -> str:
         max_depth = 3
         if current_depth > max_depth:
@@ -508,11 +562,19 @@ class AgentInstance(IAgent):
         if chat_id is not None:
             self._current_chat_id = chat_id
         self._on_token = on_token
+        self._on_status = on_status
         self._last_tool_sequence = []
         self._last_user_message = message
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y-%m-%d %H:%M")
         self._memory.append(ChatMessage(role="user", content=f"[{ts}] {message}"))
+
+        # Quick-response for trivial messages (greetings, thanks, bye)
+        if current_depth == 0:
+            is_trivial, trivial_response = _is_trivial_message(message)
+            if is_trivial:
+                self._memory.append(ChatMessage(role="assistant", content=trivial_response))
+                return trivial_response
 
 
         # Stage 1: Classify (multi mode)
@@ -693,11 +755,35 @@ class AgentInstance(IAgent):
         force_delegate: bool = False,
     ) -> str:
         all_tools = self._tools.get_definitions()
-        # Smart filter: keep core tools + tools matching message keywords
+        # Progressive tool loading: first iteration uses only matched tools.
+        # If a tool call fails, fallback includes all tools.
         msg_lower = self._last_user_message.lower()
-        tools = [t for t in all_tools if t.function["name"] in _CORE_TOOLS
-                 or any(t.function["name"].startswith(prefix) and any(kw in msg_lower for kw in kws)
-                        for prefix, kws in _TOOL_GROUPS)]
+
+        # Collect keyword-matched tool prefixes
+        matched_prefixes = {
+            prefix for prefix, kws in _TOOL_GROUPS
+            if any(kw in msg_lower for kw in kws)
+        }
+
+        # Pick tools: core tools matching keywords + group-prefixed tools
+        tools = [
+            t for t in all_tools
+            if (
+                t.function["name"] in _CORE_TOOLS
+                and any(kw in msg_lower for kw in _CORE_KEYWORDS)
+            )
+            or any(t.function["name"].startswith(p) for p in matched_prefixes)
+        ]
+        # Fallback: if no tools matched, include essential tools only
+        if not tools:
+            tools = [
+                t for t in all_tools
+                if t.function["name"] in _ESSENTIAL_TOOLS
+            ]
+        # On second iteration (tool retry), offer all tools
+        full_tools = [t for t in all_tools if t.function["name"] in _CORE_TOOLS
+                       or any(t.function["name"].startswith(prefix)
+                              for prefix, _ in _TOOL_GROUPS)]
 
         # Build context block (not persisted to memory)
         from datetime import datetime as _dt
@@ -708,7 +794,8 @@ class AgentInstance(IAgent):
         if force_delegate:
             context_parts.append(
                 "[AGENT CAPABILITIES] Delegate via send_message. Do NOT try to handle these yourself.\n"
-                "  security-agent: vulnerability scanning, network monitoring, firewall management, threat intelligence (CVE lookup, IP reputation), "
+                "  security-agent: vulnerability scanning, network monitoring, "
+                "firewall management, threat intelligence (CVE lookup, IP reputation), "
                 "event log analysis, system auditing (users, startup, USB, WiFi, browser policies, scheduled tasks), "
                 "Defender management, persistence checks, hosts file inspection\n"
                 "  obsidian-assistant: create/search/edit Obsidian vault notes, daily notes, templates, "
@@ -723,9 +810,10 @@ class AgentInstance(IAgent):
                 "remove_firewall_rule (with approval)"
             )
 
+        tool_set = tools
         for iteration in range(self._MAX_ITERATIONS):
             is_last = iteration == self._MAX_ITERATIONS - 1
-            available_tools = [] if is_last else tools
+            available_tools = [] if is_last else tool_set
 
             # Inject context before each LLM call without persisting
             if self._mode == "multi" and force_delegate and current_depth == 0:
@@ -883,7 +971,8 @@ class AgentInstance(IAgent):
                     else:
                         from src.agents.guardrails import GUARDED_TOOLS, request_approval as _req_approval
 
-                        ctx = ToolContext(depth=current_depth, chat_id=self._current_chat_id)
+                        ctx = ToolContext(depth=current_depth, chat_id=self._current_chat_id,
+                                           on_status=self._on_status)
 
                         if fn_name in GUARDED_TOOLS and self._current_chat_id:
                             task_id = _req_approval(fn_name, fn_args, self._current_chat_id, self.id)
@@ -898,6 +987,7 @@ class AgentInstance(IAgent):
                         # If opencode was called, stop — it runs async, no need to continue
                         if fn_name == "call_opencode":
                             return "OpenCode is handling this in the background. You can keep chatting!"
+                tool_set = full_tools
                 continue
 
             if response.content:

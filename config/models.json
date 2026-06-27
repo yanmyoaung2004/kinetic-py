@@ -1,5 +1,5 @@
 {
-  "mode": "multi",
+  "mode": "single",
   "embedding": {
     "provider": "ollama-embedding",
     "model": "nomic-embed-text:latest"

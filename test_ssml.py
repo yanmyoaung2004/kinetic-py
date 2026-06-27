@@ -1,4 +1,6 @@
-import asyncio, edge_tts
+import asyncio
+
+import edge_tts
 
 async def test():
     ssml = (

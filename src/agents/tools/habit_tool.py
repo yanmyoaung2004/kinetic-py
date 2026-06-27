@@ -31,22 +31,20 @@ def _next_id(data: dict[str, Any]) -> int:
 
 
 def _calc_streak(logs: list[str], freq: str) -> int:
-    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    today = datetime.now(UTC)
     streak = 0
     if freq == "daily":
         check = today
         while True:
-            if check in logs:
+            if check.strftime("%Y-%m-%d") in logs:
                 streak += 1
-                check = (datetime.strptime(check, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+                check -= timedelta(days=1)
             else:
                 break
     elif freq == "weekly":
-        current_week_start = datetime.now(UTC) - timedelta(days=datetime.now(UTC).weekday())
-        check = current_week_start
+        check = today - timedelta(days=today.weekday())
         for _ in range(52):
-            week_key = check.strftime("%Y-W%W")
-            if week_key in logs:
+            if check.strftime("%Y-W%W") in logs:
                 streak += 1
                 check -= timedelta(days=7)
             else:

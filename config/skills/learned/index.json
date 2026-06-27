@@ -17,6 +17,22 @@
       ],
       "path": "config\\skills\\learned\\network_create_note_about.md",
       "created": "2026-06-27T13:13:18.284200"
+    },
+    {
+      "name": "kill_notepad_process",
+      "trigger": "ok please kill notepad process",
+      "trigger_keywords": [
+        "please",
+        "kill",
+        "notepad",
+        "process"
+      ],
+      "tool_sequence": [
+        "security_kill_process",
+        "security_kill_process"
+      ],
+      "path": "config\\skills\\learned\\kill_notepad_process.md",
+      "created": "2026-06-27T19:13:17.309335"
     }
   ]
 }

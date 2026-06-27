@@ -14,6 +14,7 @@ logger = logging.getLogger("kinetic.tools")
 class ToolContext:
     depth: int = 0
     chat_id: int | None = None
+    on_status: Any | None = None  # Callable[[str], None] — updates placeholder during delegation
 
 
 @dataclass
@@ -94,6 +95,11 @@ async def _do_send_message(
 ) -> str:
     depth = (ctx.depth if ctx else 0) + 1
     logger.info("[DELEGATE] main -> %s (depth=%d): %.120s", args["target"], depth, args["message"])
+    if ctx and ctx.on_status:
+        try:
+            ctx.on_status(f"Delegated to {args['target']}...")
+        except Exception:
+            pass
     result = await dispatch_fn(args["target"], args["message"], depth)
     return f"Response from {args['target']}:\n{result}"
 

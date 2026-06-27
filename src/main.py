@@ -312,16 +312,16 @@ class KinetiCBot:
             return
 
         if cmd == "/approve" and len(parts) >= 2:
-            from src.agents.guardrails import consume as _consume, list_pending as _list_pending
+            from src.agents.guardrails import consume as _consume
             task_id = parts[1]
-            pending = _consume(task_id)
-            if not pending:
+            pending_item = _consume(task_id)
+            if not pending_item:
                 await msg.reply_text(f"No pending action found for {task_id}.")
                 return
-            agent = self.dispatcher._active_agents.get(pending.get("agent_id") or self._agent_target)
+            agent = self.dispatcher._active_agents.get(pending_item.get("agent_id") or self._agent_target)
             if agent:
-                result = await agent.execute_tool_directly(pending["tool"], pending["args"])
-                await msg.reply_text(f"Approved and executed: {pending['tool']}\n\n{result[:500]}")
+                result = await agent.execute_tool_directly(pending_item["tool"], pending_item["args"])
+                await msg.reply_text(f"Approved and executed: {pending_item['tool']}\n\n{result[:500]}")
             else:
                 await msg.reply_text("Agent not available.")
             return
@@ -337,12 +337,12 @@ class KinetiCBot:
 
         if cmd == "/approve":
             from src.agents.guardrails import list_pending as _lp
-            pending = _lp(chat_id)
-            if not pending:
+            pending_list = _lp(chat_id)
+            if not pending_list:
                 await msg.reply_text("No pending actions.")
             else:
                 lines = ["Pending approvals:"]
-                for p in pending:
+                for p in pending_list:
                     lines.append(f"  /approve {p['task_id']} - {p['tool']} ({p['reason'][:60]})")
                 await msg.reply_text("\n".join(lines))
             return
@@ -558,15 +558,13 @@ class KinetiCBot:
         tts_mode = chat_id in _tts_enabled_chats
 
         if not tts_mode:
-            stream_msg = await msg.reply_text("...", parse_mode="HTML")
+            stream_msg = await msg.reply_text("Processing...", parse_mode="HTML")
         accumulated = ""
         last_edit = 0.0
 
         def on_token(token: str) -> None:
             nonlocal accumulated, last_edit
             accumulated += token
-            if tts_mode:
-                return
             if tts_mode:
                 return
             now_t = __import__("time").time()
@@ -579,12 +577,20 @@ class KinetiCBot:
                     except Exception:
                         pass
 
+        def on_status(text: str) -> None:
+            if tts_mode:
+                return
+            try:
+                asyncio.create_task(stream_msg.edit_text(text, parse_mode="HTML"))
+            except Exception:
+                pass
+
         task = asyncio.create_task(
-            self.dispatcher.dispatch(self._agent_target, text, 0, chat_id, on_token)
+            self.dispatcher.dispatch(self._agent_target, text, 0, chat_id, on_token, on_status)
         )
         typing = asyncio.create_task(_typing_indicator(msg.chat, task))
         try:
-            response = await task
+            response: str | None = await task
             response = self._clean_tool_echo(response)
             if not tts_mode:
                 await stream_msg.delete()
@@ -695,6 +701,7 @@ class KinetiCBot:
         assert msg.chat is not None
 
         try:
+            response: str | None = None
             from telegram import Document, PhotoSize
 
             attachment = msg.effective_attachment
@@ -750,7 +757,7 @@ class KinetiCBot:
                         )
                         typing = asyncio.create_task(_typing_indicator(msg.chat, task))
                         response = await task
-                        safe = _convert_markdown(response)
+                        safe = _convert_markdown(response or "")
                         await _send_long_message(msg, safe)
                         typing.cancel()
                     await self._send_pending_files(chat_id, update)
@@ -768,15 +775,15 @@ class KinetiCBot:
 
             task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
-            response = await task
-            response = self._clean_tool_echo(response)
+            _result = await task
+            response = self._clean_tool_echo(_result)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
             if chat_id in _tts_enabled_chats:
                 if response:
                     await self._send_tts(msg, response)
             else:
-                safe = _convert_markdown(response)
+                safe = _convert_markdown(response or "")
                 await _send_long_message(msg, safe)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
@@ -811,15 +818,15 @@ class KinetiCBot:
 
             task = asyncio.create_task(self.dispatcher.dispatch(self._agent_target, full_message, 0, chat_id))
             typing = asyncio.create_task(_typing_indicator(msg.chat, task))
-            response = await task
-            response = self._clean_tool_echo(response)
+            _result = await task
+            response = self._clean_tool_echo(_result)
             typing.cancel()
             await self._send_pending_files(chat_id, update)
             if chat_id in _tts_enabled_chats:
                 if response:
                     await self._send_tts(msg, response)
             else:
-                safe = _convert_markdown(response)
+                safe = _convert_markdown(response or "")
                 await _send_long_message(msg, safe)
         except Exception as e:
             await msg.reply_text(f"Error: {e}")
