@@ -1,4 +1,5 @@
 {
+  "mode": "multi",
   "embedding": {
     "provider": "ollama-embedding",
     "model": "nomic-embed-text:latest"
@@ -6,14 +7,13 @@
   "defaults": {
     "classify": {
       "provider": "groq",
-      "model": "llama-3.3-70b-versatile"
+      "model": "openai/gpt-oss-120b"
     },
     "think": {
-      "provider": "groq",
-      "model": "llama-3.3-70b-versatile",
+      "provider": "cloudflare",
+      "model": "@cf/openai/gpt-oss-120b",
       "fallbacks": [
-        { "provider": "lightning", "model": "lightning-ai/gpt-oss-120b" },
-        { "provider": "opencode", "model": "opencode-go/deepseek-v4-flash" }
+        { "provider": "lightning", "model": "lightning-ai/gpt-oss-120b" }
       ]
     },
     "tool_call": {
@@ -29,6 +29,10 @@
     "lightning": {
       "baseUrl": "https://lightning.ai/api/v1/",
       "apiKeyEnv": "LIGHTNING_API_KEY"
+    },
+    "cloudflare": {
+      "baseUrl": "https://api.cloudflare.com/client/v4/accounts/ac3e677a5f5a8f21ca4d1526f811657f/ai/v1",
+      "apiKeyEnv": "CLOUD_FLARE_API_KEY"
     },
     "opencode": {
       "baseUrl": "https://opencode.ai/zen/go/v1",
