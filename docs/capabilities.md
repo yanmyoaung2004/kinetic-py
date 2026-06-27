@@ -3,6 +3,7 @@
 ## Agent Framework
 
 - **Thin orchestrator architecture** — main agent has ~15 core tools; specialized tasks delegated to sub-agents
+- **Self-improving learning loop** — multi-step tool sequences auto-generate reusable skill documents
 - **Dispatcher-registry architecture** — lazy-loads agents, evicts after 5 min idle
 - **Sub-agent spawning** — library agents with `can_delegate: true` spawn ephemeral specialists (max 3, depth 3)
 - **Inter-agent messaging** — `send_message` to any registered agent by ID
@@ -14,8 +15,8 @@
 
 | Agent | Tools | Role |
 |-------|-------|------|
-| **main** | ~15 core tools | Orchestrator — routes tasks, handles simple requests directly |
-| **coding-assistant** | 21 tools | Software development (code, git, opencode, commands) |
+| **main** | ~15 core tools | Orchestrator — routes tasks via send_message |
+| **coding-assistant** | 21 tools | Software development (code, git, opencode) |
 | **security-agent** | 33 tools | System security, network, threat intel |
 | **obsidian-assistant** | 15 tools | Obsidian vault management (second brain) |
 | **productivity-agent** | 10 tools | Habits and pomodoro timer |
@@ -25,11 +26,11 @@
 
 ```
 User -> main agent (classifies intent)
-  -> if simple: handles directly with core tools
+  -> if simple file/schedule: handles directly
   -> if specialized: send_message to appropriate agent
-     -> specialist processes with its focused toolset
+     -> specialist processes with focused toolset
      -> returns result
-  -> main agent delivers response
+  -> main agent formats and delivers response
 ```
 
 ## Memory & User Profile
@@ -37,15 +38,23 @@ User -> main agent (classifies intent)
 - **Persistent history** — JSONL at `agents_workspace/<agentId>/history.jsonl`
 - **Capped at 500 messages** (configurable via `AGENT_MEMORY_MAX`)
 - **Context compression** — old exchanges summarized into `[COMPRESSED HISTORY]` when exceeding threshold
-- **User profile extraction** — background LLM extracts permanent facts every 3 messages
-- **All background tasks deferred** — never blocks the user-facing reply
+- **User profile extraction** — background LLM extracts permanent facts every 3 messages. Facts persist across sessions via global profile.
+- **Cross-session memory** — `agents_workspace/<id>/global_profile.json` merges knowledge across sessions. `/forget_fact <keyword>` to remove specific memories.
+- **All background tasks deferred** — never blocks the user-facing reply.
+
+## Learning Loop
+
+- **Automatic skill generation** — after every successful multi-step response (2+ tool calls), a SOUL.md skill document is created at `config/skills/learned/<topic>.md`
+- **Skill reuse** — on matching queries, learned skills are injected as system prompt context
+- **Commands:** `/skills` (list), `/forget_skill <name>` (remove)
+- Replaces old manual `/perfect` workflow system
 
 ## Tool System — 80+ Tools
 
 All tools registered globally, restricted per-agent via `"tools"` whitelist in `agents.json`.
 
 ### File & Code (9)
-`read_file`, `write_file`, `edit_file`, `delete_file`, `list_files`, `undo_file`, `download_url`, `execute_command`, `run_code`
+`sandbox_read_file`, `sandbox_write_file`, `sandbox_edit_file`, `sandbox_delete_file`, `sandbox_list_files`, `sandbox_undo_file`, `download_url`, `execute_command`, `run_code`
 
 ### System & Maintenance (6)
 `get_current_time`, `get_system_info`, `read_env_var`, `system_temp_cleanup`, `system_disk_usage`, `system_startup_optimize`
@@ -53,13 +62,13 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 ### Browser (7)
 `browser_navigate`, `browser_click`, `browser_fill`, `browser_extract`, `browser_screenshot`, `browser_html`, `browser_close`
 
-### Communication (5)
+### Communication (6)
 `send_file`, `send_message`, `send_email`, `read_emails`, `read_email_body`, `reply_to_email`
 
 ### Knowledge & Search (7)
 `query_knowledge_base`, `index_file`, `index_url`, `index_github`, `scrape_and_index`, `knowledge_stats`, `web_search`
 
-### Security (28)
+### Security (29)
 `security_scan_system`, `security_scan_network`, `security_process_info`, `security_kill_process`, `security_block_ip`, `security_unblock_ip`, `security_check_logs`, `security_audit_startup`, `security_audit_scheduled_tasks`, `security_audit_usb`, `security_generate_report`, `security_ping_sweep`, `security_scan_ports`, `security_audit_wifi`, `security_lookup_cve`, `security_check_ip`, `security_audit_users`, `security_firewall_rules`, `security_drive_health`, `security_persistence_check`, `security_defender_scan`, `security_hosts_check`, `security_browser_audit`, `security_remove_firewall_rule`, `security_defender_set`, `security_elevate_bot`, `security_set_watch`, `security_list_watches`, `security_remove_watch`
 
 ### Network (4)
@@ -68,13 +77,13 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 ### Productivity (13)
 `pomodoro_start`, `pomodoro_status`, `pomodoro_stats`, `pomodoro_stop`, `habit_add`, `habit_log`, `habit_unlog`, `habit_list`, `habit_stats`, `habit_remove`, `obsidian_template`, `obsidian_recent`, `obsidian_tags`
 
-### Other (7)
-`generate_image`, `image_search`, `spawn_specialist`, `schedule_task`, `create_monitor`, `list_monitors`, `run_pipeline`, `get_youtube_info`, `zip`, `unzip`, `git`, `weather`, `news`, `daily_briefing`, `list_skills`, `call_opencode`, `apply_opencode`, `create_presentation`
+### Other (15)
+`generate_image`, `image_search`, `spawn_specialist`, `schedule_task`, `create_monitor`, `list_monitors`, `run_pipeline`, `get_youtube_info`, `zip_project`, `unzip`, `git`, `get_weather`, `get_news`, `daily_briefing`, `list_skills`, `call_opencode`, `apply_opencode`, `create_presentation`
 
 ## Voice Chat
 
 - **Push-to-talk** — press Alt+V, speak, release, hear response
-- **System tray app** — icon shows idle/recording/processing/speaking states
+- **System tray** — colored status icon (idle/recording/processing/speaking)
 - **Google Web Speech STT** — accurate, free, no API key
 - **Offline STT** — faster-whisper backend via STT_BACKEND=offline (~75MB model, fully offline)
 - **Edge TTS** — Microsoft Neural voices, configurable speed and voice
@@ -82,10 +91,6 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 - **Restart** — tray menu restarts the server
 - **Settings** — opens .env in Notepad for editing
 - **Cross-session memory** — global profile persists facts across sessions, /forget_fact to remove
-- **Edge TTS** — Microsoft Neural voices, configurable speed and voice
-- **Interrupt** — press hotkey during playback to stop and re-record
-- **Restart** — tray menu restarts the server
-- **Settings UI** — Tkinter dialog to edit env vars (API URL, hotkey, voice, speed)
 
 ## Security Tools
 
@@ -120,6 +125,7 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 - **Provider failover** — `fallbacks` tried in order on failure
 - **429 retry** — configurable via `RATE_LIMIT_RETRY_SECONDS` env var
 - **Runtime override** — `/models set think <provider> [model]`
+- **Detailed error logging** — full provider response body, status code, URL logged on failure
 
 ## Web UI Dashboard (FastAPI)
 
@@ -130,7 +136,7 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/chat` | POST | `{ message, session_id, voice }` → `{ response }` |
+| `/api/chat` | POST | `{ message, session_id, voice }` -> `{ response }` |
 | `/api/chat/upload` | POST | File upload + message |
 | `/api/sessions` | GET/POST | List/create sessions |
 | `/api/status` | GET | Uptime, agents, session |
@@ -150,6 +156,9 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 | `/help` | All commands |
 | `/tts_on` | Enable voice responses |
 | `/tts_off` | Disable voice responses |
+| `/skills` | List learned skills |
+| `/forget_skill <name>` | Remove a learned skill |
+| `/forget_fact <keyword>` | Remove a fact from memory |
 | `/models` | Show/switch provider config |
 | `/providers` | List endpoints |
 | `/status` | Bot uptime, agents |
@@ -157,45 +166,7 @@ All tools registered globally, restricted per-agent via `"tools"` whitelist in `
 | `/reset` | Clear current session |
 | `/session` | Manage sessions |
 | `/task list` | Scheduled tasks |
-| `/task remove` | Remove task |
 | `/knowledge` | Knowledge base stats |
-| `/search` | Search conversation history |
-| `/workflows` | Learned workflows |
-
-## Architecture
-
-```
-Telegram ─┐    Web UI ───┐    Voice Chat ──┐
-           ▼             ▼                ▼
-    ┌──────────────────────────────────────────┐
-    │              Dispatcher                  │
-    │  (orchestrator.py)                       │
-    └────────────────┬─────────────────────────┘
-                     │
-    ┌────────────────┴─────────────────────────┐
-    │              Agent (agent.py)             │
-    │  • think loop (3 iter)                   │
-    │  • profile extraction                    │
-    │  • context compression                   │
-    │  • SOUL personality                      │
-    │  • 80+ tools                             │
-    └────────────────┬─────────────────────────┘
-                     │
-    ┌────────────────┴─────────────────────────┐
-    │          UnifiedProvider                  │
-    │  (OpenAI-compatible, failover chain)     │
-    └──────────────────────────────────────────┘
-```
-
-## Processing Flow
-
-1. Message arrives (Telegram / Web UI / Voice Chat)
-2. Agent loads SOUL + history + profile
-3. **Think** loop (up to 3 iterations):
-   - LLM receives history + tools
-   - Tool call → execute → loop
-   - Text response → return
-4. Background: profile extraction + compression
 
 ## CLI Tools
 
