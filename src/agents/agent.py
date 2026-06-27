@@ -668,6 +668,12 @@ class AgentInstance(IAgent):
                     await self._evolve_soul()
                 except Exception:
                     pass
+            # Memory compaction every 5 messages — dedup profiles, workflows, histories
+            if msg_count > 0 and msg_count % 5 == 0:
+                try:
+                    await self._compact_memory()
+                except Exception:
+                    pass
 
         asyncio.create_task(_background())
 
@@ -936,6 +942,54 @@ Conversation:
             )
         except Exception:
             pass
+
+    async def _compact_memory(self) -> None:
+        """Deduplicate and compact memory — removes redundant system messages."""
+        msgs = self._memory.get_messages()
+        if not msgs:
+            return
+
+        before = len(msgs)
+        seen_workflows: set[str] = set()
+        keep: list = []
+
+        for m in msgs:
+            if m.role != "system":
+                keep.append(m)
+                continue
+            content = m.content or ""
+
+            # Keep only the LAST user profile
+            if content.startswith("[USER PROFILE]"):
+                keep = [km for km in keep if not (
+                    km.role == "system" and (km.content or "").startswith("[USER PROFILE]")
+                )]
+                keep.append(m)
+                continue
+
+            # Deduplicate learned workflows
+            if content.startswith("[LEARNED WORKFLOW]"):
+                key = content.split("'")[1] if "'" in content else content
+                if key in seen_workflows:
+                    continue
+                seen_workflows.add(key)
+                keep.append(m)
+                continue
+
+            # Keep only the most recent compressed history
+            if content.startswith("[COMPRESSED HISTORY]"):
+                keep = [km for km in keep if not (
+                    km.role == "system" and (km.content or "").startswith("[COMPRESSED HISTORY]")
+                )]
+                keep.append(m)
+                continue
+
+            keep.append(m)
+
+        after = len(keep)
+        if before != after:
+            self._memory.replace_messages(keep)
+            logger.info("[MEMORY] Compacted %d -> %d messages (removed %d)", before, after, before - after)
 
     async def _compress_history(self) -> None:
         candidates = self._memory.get_compression_candidates()

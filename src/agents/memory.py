@@ -108,6 +108,13 @@ class AgentMemory:
     def get_user_message_count(self) -> int:
         return self._user_message_count
 
+    def replace_messages(self, msgs: list[ChatMessage]) -> None:
+        """Replace all messages in memory (for compaction)."""
+        self._history = list(msgs)
+        with self._history_path.open("w", encoding="utf-8") as f:
+            for m in self._history:
+                f.write(json.dumps(m.to_dict()) + "\n")
+
     def needs_compression(self, threshold: int = 60) -> bool:
         non_system = [m for m in self._history if m.role != "system"]
         return len(non_system) > threshold
