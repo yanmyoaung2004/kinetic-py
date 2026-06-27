@@ -503,7 +503,9 @@ class AgentInstance(IAgent):
         self._on_token = on_token
         self._last_tool_sequence = []
         self._last_user_message = message
-        self._memory.append(ChatMessage(role="user", content=message))
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y-%m-%d %H:%M")
+        self._memory.append(ChatMessage(role="user", content=f"[{ts}] {message}"))
 
 
         # Stage 1: Classify (multi mode)
