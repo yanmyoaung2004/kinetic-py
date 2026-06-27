@@ -311,6 +311,25 @@ class KinetiCBot:
                 await msg.reply_text("No profile extracted yet. Send me a few messages and I'll learn about you.")
             return
 
+        if cmd == "/skills":
+            from src.agents.skill_learner import list_skills
+            skills = await list_skills()
+            if not skills:
+                await msg.reply_text("No skills learned yet. Multi-step tasks are auto-learned.")
+            else:
+                lines = [f"Learned skills ({len(skills)}):"]
+                for s in skills:
+                    seq = " \u2192 ".join(s.get("tool_sequence", []))
+                    lines.append(f"  - {s['name']}: {seq}")
+                await msg.reply_text("\n".join(lines))
+            return
+
+        if cmd == "/forget_skill" and len(parts) >= 2:
+            from src.agents.skill_learner import forget_skill
+            ok = await forget_skill(parts[1].lower())
+            await msg.reply_text(f"{'Forgotten.' if ok else 'Not found.'}")
+            return
+
         if cmd == "/tts_on":
             _tts_enabled_chats.add(chat_id)
             _save_tts_state()
@@ -457,20 +476,7 @@ class KinetiCBot:
             return
 
         if cmd == "/perfect":
-            from src.agents.learning import save_workflow
-            main_agent = self.dispatcher._active_agents.get(self._agent_target)
-            seq = getattr(main_agent, "_last_tool_sequence", None) if main_agent else None
-            if seq:
-                user_msg = getattr(main_agent, "_last_user_message", "") or ""
-                trigger = seq[0]
-                for prefix in ("sandbox_", "obsidian_", "create_", "get_", "list_"):
-                    trigger = trigger.replace(prefix, "")
-                if len(trigger) < 3:
-                    trigger = "task"
-                await save_workflow(trigger.lower(), seq, user_msg[:200])
-                await msg.reply_text(f"✓ Learned workflow for '{trigger}': {' → '.join(seq)}")
-            else:
-                await msg.reply_text("No recent tool calls to learn from.")
+            await msg.reply_text("Skills are now auto-learned. Use /skills to see them.")
             return
 
         if cmd == "/forget_fact" and len(parts) >= 2:
@@ -487,18 +493,7 @@ class KinetiCBot:
             await msg.reply_text(f"{'✓ Forgotten.' if ok else 'Not found.'}")
             return
 
-        if cmd == "/workflows":
-            from src.agents.learning import list_workflows
-            wfs = await list_workflows()
-            if not wfs:
-                await msg.reply_text("No workflows learned yet.")
-            else:
-                lines = [f"Learned workflows ({len(wfs)}):"]
-                for w in wfs:
-                    seq = " → ".join(w["tool_sequence"])
-                    lines.append(f"  • {w['trigger']} (x{w['success_count']}): {seq}")
-                await msg.reply_text("\n".join(lines))
-            return
+
 
     async def handle_message(self, update: Update, context: Any = None) -> None:
         msg = update.message
