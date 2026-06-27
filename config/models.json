@@ -20,6 +20,10 @@
       "model": "@cf/google/gemma-4-26b-a4b-it",
       "fallbacks": [
         {
+          "provider": "groq",
+          "model": "openai/gpt-oss-120b"
+        },
+        {
           "provider": "lightning",
           "model": "lightning-ai/gpt-oss-120b"
         }
