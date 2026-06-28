@@ -46,7 +46,7 @@
     {
       "id": "obsidian-assistant",
       "name": "Second Brain Assistant",
-      "soulPath": "./skills/obsidian-assistant/SOUL.md",
+      "soulPath": "./obsidian-assistant/SOUL.md",
       "provider": "",
       "model": "",
       "type": "library",
