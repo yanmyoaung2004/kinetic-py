@@ -30,6 +30,7 @@ pytest tests/test_provider.py::test_fallback_all_fail -xvs
 - **SOUL files**: `config/<agent-id>/SOUL.md` — system prompt per agent
 - **Skills**: `config/skills/<id>/skill.json` (manifest) + `SOUL.md` — installable sub-agent packs with tool whitelists
 - **Tool whitelist**: agents can restrict tools via `"tools"` array in `agents.json` — `null` = all tools, `[]` = no tools, `["a","b"]` = only those
+- **Thin specialists**: `soul_trimmed`, `skip_recall`, `skip_auto_learn`, `ephemeral`, and `max_iterations` flags in `agents.json` strip overhead from specialists (see `docs/architecture.md`)
 - **Workspace**: `agents_workspace/` — created at runtime for memory, knowledge base, task data
 - **Knowledge base**: disk-based vector store at `agents_workspace/<agentId>/knowledge/store.json`
 - **Memory**: JSONL at `agents_workspace/<agentId>/history.jsonl`, capped at 500 messages

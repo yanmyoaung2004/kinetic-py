@@ -137,3 +137,24 @@ The **answer stage** receives the full conversation history (controlled by `AGEN
 ```
 
 In **single mode** (`"mode"` not set), all stages collapse into one think loop with full history — same behavior as before.
+
+---
+
+## Thin Specialist Agents
+
+Specialists (`security-agent`, `coding-assistant`, etc.) can be configured as lightweight executors rather than full agents using config flags in `agents.json`:
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `soul_trimmed` | `false` | Replaces full SOUL.md with `"You are {id}. Execute what's requested. Output concisely."` |
+| `skip_recall` | `false` | Skips vector store query for past memories |
+| `skip_auto_learn` | `false` | Skips skill extraction from tool sequences |
+| `ephemeral` | `false` | In-memory only — no disk I/O for history or profiles |
+| `max_iterations` | `3` | Caps the think loop iterations |
+
+The **main agent** always runs as a full agent (all flags default to `false`). Specialists become thin executors: no SOUL overhead, no memory persistence, no background tasks, no recall queries.
+
+```
+main agent        → full agent (SOUL, memory, recall, evolution, auto-learn)
+specialists       → thin executors (trimmed SOUL, ephemeral memory, no recall, no auto-learn)
+```
