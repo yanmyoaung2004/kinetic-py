@@ -76,6 +76,11 @@ class KinetiCDispatcher:
                     if agent_data.get("soulPath")
                     else None,
                     tools=tools_list,
+                    soul_trimmed=agent_data.get("soul_trimmed", False),
+                    skip_recall=agent_data.get("skip_recall", False),
+                    skip_auto_learn=agent_data.get("skip_auto_learn", False),
+                    ephemeral=agent_data.get("ephemeral", False),
+                    max_iterations=agent_data.get("max_iterations", 3),
                 )
             )
         logger.info("[DISPATCHER] Registered %d agents from config.", len(data.get("registry", [])))

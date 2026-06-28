@@ -17,6 +17,12 @@ class AgentCard:
     can_delegate: bool = False
     soul_path: str | None = None
     tools: list[str] | None = None  # None = all tools, [] = no tools, [...] = only these
+    # Thin specialist flags
+    soul_trimmed: bool = False       # use minimal one-liner instead of full SOUL.md
+    skip_recall: bool = False        # skip vector store query for memories
+    skip_auto_learn: bool = False    # skip skill extraction from tool sequences
+    ephemeral: bool = False          # keep memory in-memory, no disk I/O
+    max_iterations: int = 3          # cap think loop iterations (3 = existing default)
 
 
 class IAgent(Protocol):

@@ -330,7 +330,10 @@ class AgentInstance(IAgent):
         self._on_token: Callable[[str], None] | None = None
         self._last_tool_sequence: list[str] = []
         self._last_user_message: str = ""
-        self._MAX_ITERATIONS = 3
+        self._MAX_ITERATIONS = config.max_iterations
+        self._skip_recall = config.skip_recall
+        self._skip_auto_learn = config.skip_auto_learn
+        self._ephemeral = config.ephemeral
 
         self._think_providers = _create_think_providers(think_stage, endpoints)
         self._classify_providers: list[UnifiedProvider] | None = None
@@ -345,7 +348,14 @@ class AgentInstance(IAgent):
             if answer_stage:
                 self._answer_providers = _create_think_providers(answer_stage, endpoints)
 
-        self._memory = AgentMemory(agent_id, workspaces_dir, max_memory_messages, session_id)
+        self._memory = AgentMemory(agent_id, workspaces_dir, max_memory_messages, session_id, ephemeral=self._ephemeral)
+
+        # Trim SOUL if configured (thin specialist mode)
+        if self.config.soul_trimmed:
+            self.config.system_prompt = (
+                f"You are {self.id}. Execute what's requested."
+                " Output the result concisely. Do not add extra commentary."
+            )
 
         # Inject system prompt
         soul = f"{self.config.system_prompt}\n{GLOBAL_PROTOCOLS}"
@@ -613,7 +623,7 @@ class AgentInstance(IAgent):
                 pass
 
         # Stage 1.5: Recall relevant past memories (injected into think loop, not persisted)
-        recall = await self._recall_memories(message)
+        recall = "" if self._skip_recall else await self._recall_memories(message)
 
         # Stage 1.6: Recall relevant Obsidian notes (auto-indexing, only when relevant)
         if os.environ.get("OBSIDIAN_VAULT_PATH") and any(kw in message.lower() for kw in
@@ -685,7 +695,8 @@ class AgentInstance(IAgent):
                 pass
 
         # Auto-learn: save multi-step tool sequences as reusable skills
-        if self._last_tool_sequence and len(self._last_tool_sequence) >= 2 and current_depth == 0:
+        if (not self._skip_auto_learn and self._last_tool_sequence
+                and len(self._last_tool_sequence) >= 2 and current_depth == 0):
             try:
                 from src.agents.skill_learner import extract_and_save_skill
                 skill = await extract_and_save_skill(
@@ -702,6 +713,8 @@ class AgentInstance(IAgent):
 
         # Background tasks (deferred, never block response)
         async def _background() -> None:
+            if self._ephemeral:
+                return
             msg_count = self._memory.get_user_message_count()
             if msg_count % 3 == 0:
                 try:

@@ -34,9 +34,11 @@ class AgentMemory:
         workspaces_dir: str | Path,
         max_messages: int | None = None,
         session_id: str | None = None,
+        ephemeral: bool = False,
     ) -> None:
         self.session_id = session_id or "default"
         self.max_messages = max_messages or DEFAULT_MAX_MESSAGES
+        self.ephemeral = ephemeral
         self._history: list[ChatMessage] = []
         self._user_message_count = 0
 
@@ -80,6 +82,8 @@ class AgentMemory:
             return "default"
 
     def _load(self) -> None:
+        if self.ephemeral:
+            return
         if not self._history_path.exists():
             return
         for line in self._history_path.read_text("utf-8").splitlines():
@@ -96,9 +100,10 @@ class AgentMemory:
 
     def append(self, msg: ChatMessage) -> None:
         self._history.append(msg)
-        with self._history_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(msg.to_dict()) + "\n")
-        self._trim()
+        if not self.ephemeral:
+            with self._history_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(msg.to_dict()) + "\n")
+            self._trim()
         if msg.role == "user":
             self._user_message_count += 1
 
@@ -111,11 +116,14 @@ class AgentMemory:
     def replace_messages(self, msgs: list[ChatMessage]) -> None:
         """Replace all messages in memory (for compaction)."""
         self._history = list(msgs)
-        with self._history_path.open("w", encoding="utf-8") as f:
-            for m in self._history:
-                f.write(json.dumps(m.to_dict()) + "\n")
+        if not self.ephemeral:
+            with self._history_path.open("w", encoding="utf-8") as f:
+                for m in self._history:
+                    f.write(json.dumps(m.to_dict()) + "\n")
 
     def needs_compression(self, threshold: int = 60) -> bool:
+        if self.ephemeral:
+            return False
         non_system = [m for m in self._history if m.role != "system"]
         return len(non_system) > threshold
 
@@ -219,6 +227,8 @@ class AgentMemory:
             shutil.rmtree(self._agent_dir)
 
     def _trim(self) -> None:
+        if self.ephemeral:
+            return
         if len(self._history) <= self.max_messages:
             return
         system = [m for m in self._history if m.role == "system"]
@@ -228,6 +238,8 @@ class AgentMemory:
         self._rewrite()
 
     def _rewrite(self) -> None:
+        if self.ephemeral:
+            return
         content = "\n".join(json.dumps(m.to_dict()) for m in self._history)
         # Atomic write: write to .tmp then rename
         tmp = self._history_path.with_suffix(".jsonl.tmp")
