@@ -167,6 +167,11 @@ BRAVE_API_KEY=...
 AGENT_TARGET=main
 API_PORT=18789
 AGENT_MEMORY_MAX=500
+
+# Optional: headroom-ai context compression
+# HEADROOM_COMPRESSION=1
+# HEADROOM_COMPRESSION_RATIO=0.3
+# HEADROOM_MODEL=gpt-4o
 ```
 
 Or use the setup wizard:
@@ -363,12 +368,14 @@ User Input (Telegram / Web UI / CLI)
         │
         ├── Classify intent (multi mode)
         ├── Think loop (up to 5 iterations)
-        │       └── LLM call → Tool execution → repeat
+        │       ├── Build message list from memory
+        │       ├── [headroom-ai compression]
+        │       ├── LLM call → Tool execution → repeat
         ├── Polish response (multi mode)
         └── Background tasks (profile, compression)
 ```
 
-**Data flow:** User → Dispatcher → Agent → LLM Provider (with failover) → Tools → Memory → Response
+**Data flow:** User → Dispatcher → Agent → [Headroom compression] → LLM Provider (with failover) → Tools → Memory → Response
 
 **Tool categories (37 tools):**
 - **File ops:** read, write, edit, delete, undo, list

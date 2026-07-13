@@ -38,6 +38,7 @@ User -> main agent (classifies intent)
 - **Persistent history** — JSONL at `agents_workspace/<agentId>/history.jsonl`
 - **Capped at 500 messages** (configurable via `AGENT_MEMORY_MAX`)
 - **Context compression** — old exchanges summarized into `[COMPRESSED HISTORY]` when exceeding threshold
+- **headroom-ai compression** — optional (`HEADROOM_COMPRESSION=1`) SmartCrusher for JSON tool outputs, CacheAligner for KV cache hits, 30–90% token reduction. See `src/utils/compression.py`.
 - **User profile extraction** — background LLM extracts permanent facts every 3 messages. Facts persist across sessions via global profile.
 - **Cross-session memory** — `agents_workspace/<id>/global_profile.json` merges knowledge across sessions. `/forget_fact <keyword>` to remove specific memories.
 - **All background tasks deferred** — never blocks the user-facing reply.
@@ -136,6 +137,7 @@ The think stage receives no history — only current message + tools. This keeps
 - **429 retry** — configurable via `RATE_LIMIT_RETRY_SECONDS` env var
 - **Runtime override** — `/models set think <provider> [model]`
 - **Detailed error logging** — full provider response body, status code, URL logged on failure
+- **Context compression** — optional headroom-ai pipeline reduces token usage 30–90% (`HEADROOM_COMPRESSION=1`)
 
 ## Web UI Dashboard (FastAPI)
 

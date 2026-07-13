@@ -136,6 +136,16 @@ kinetic
 
 Opens Telegram bot + FastAPI dashboard at `http://localhost:18789`.
 
+### Context Compression (optional)
+
+Enable headroom-ai to compress tool outputs and history before they reach the LLM — 30–90% fewer tokens, same answers:
+
+```bash
+export HEADROOM_COMPRESSION=1       # enable compression
+export HEADROOM_COMPRESSION_RATIO=0.3  # keep ~30% (aggressive)
+kinetic
+```
+
 ### 4. Voice Chat (optional)
 
 ```bash
@@ -159,6 +169,9 @@ Requires admin for global hotkey.
 | `TTS_SPEED` | `+20%` | TTS speaking rate |
 | `STT_BACKEND` | `google` | `google` or `offline` |
 | `RATE_LIMIT_RETRY_SECONDS` | `3` | LLM 429 retry delay |
+| `HEADROOM_COMPRESSION` | — | Enable headroom-ai context compression (`1` to enable) |
+| `HEADROOM_COMPRESSION_RATIO` | — | Target keep ratio (e.g. `0.3` = keep 30%) |
+| `HEADROOM_MODEL` | `gpt-4o` | Model for token counting in compression |
 | `LIGHTNING_API_KEY` | — | Lightning provider key |
 | `GROQ_API_KEY` | — | Groq provider key |
 | `CLOUD_FLARE_API_KEY` | — | Cloudflare Workers AI key |

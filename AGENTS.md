@@ -34,6 +34,7 @@ pytest tests/test_provider.py::test_fallback_all_fail -xvs
 - **Workspace**: `agents_workspace/` — created at runtime for memory, knowledge base, task data
 - **Knowledge base**: disk-based vector store at `agents_workspace/<agentId>/knowledge/store.json`
 - **Memory**: JSONL at `agents_workspace/<agentId>/history.jsonl`, capped at 500 messages
+- **Context compression**: optional headroom-ai pipeline (`HEADROOM_COMPRESSION=1`) — SmartCrusher for JSON tool outputs, CacheAligner for KV cache hits. See `src/utils/compression.py`.
 - **API**: FastAPI on port 18789 (env `API_PORT`)
 - **Providers**: all OpenAI-compatible; `SDK_COMPATIBLE_DOMAINS` is empty → uses raw HTTP fetch path by default
 
