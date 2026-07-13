@@ -102,6 +102,7 @@ from src.providers.provider import UnifiedProvider, UnifiedProviderConfig, call_
 from src.types.agent import AgentCard, IAgent, ToolDefinition
 from src.types.llm import ChatMessage
 from src.types.model_config import StageModelConfig
+from src.utils.compression import compress_messages
 
 logger = logging.getLogger("kinetic.agent")
 
@@ -842,6 +843,7 @@ class AgentInstance(IAgent):
             else:
                 msgs = list(self._memory.get_messages())
             msgs.append(ChatMessage(role="system", content="\n".join(context_parts)))
+            msgs = await compress_messages(msgs)
 
             try:
                 # Use streaming on the final text-only iteration
@@ -908,8 +910,8 @@ class AgentInstance(IAgent):
                 )
 
                 if is_last and response.tool_calls:
-                    # Give the LLM one more chance to format a natural response
                     msgs = list(self._memory.get_messages())
+                    msgs = await compress_messages(msgs)
                     try:
                         final = await call_with_fallback(
                             self._think_providers,
