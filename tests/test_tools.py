@@ -48,7 +48,7 @@ class TestToolRegistry:
     async def test_unknown_tool(self):
         registry = ToolRegistry()
         result = await registry.execute("unknown", {})
-        assert "Unknown tool" in result
+        assert "is not available" in result
 
     def test_get_definitions(self):
         registry = ToolRegistry()
