@@ -759,6 +759,13 @@ class AgentInstance(IAgent):
                     await self._compact_memory()
                 except Exception:
                     pass
+            # Failure learning — every 20 user messages
+            if msg_count > 0 and msg_count % 20 == 0:
+                try:
+                    from src.learn.learner import run_learn as _run_learn
+                    await _run_learn(dry_run=False)
+                except Exception:
+                    pass
 
         asyncio.create_task(_background())
 

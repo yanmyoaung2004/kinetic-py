@@ -4,6 +4,7 @@ import click
 
 from src.cli.agents import agents
 from src.cli.knowledge import knowledge
+from src.cli.learn import learn
 from src.cli.models import models
 from src.cli.onboard import onboard
 from src.cli.pipelines import pipelines
@@ -20,6 +21,7 @@ main.add_command(onboard)
 main.add_command(models)
 main.add_command(agents)
 main.add_command(knowledge)
+main.add_command(learn)
 main.add_command(pipelines)
 main.add_command(skills_group)
 
