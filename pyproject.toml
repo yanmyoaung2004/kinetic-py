@@ -23,6 +23,7 @@ dependencies = [
     "PyMuPDF>=1.24",
     "openpyxl>=3.1",
     "headroom-ai>=0.31",
+    "sqlite-vec>=0.1",       # shared cross-agent memory (headroom-compatible)
 ]
 
 [project.optional-dependencies]

@@ -103,6 +103,7 @@ from src.types.agent import AgentCard, IAgent, ToolDefinition
 from src.types.llm import ChatMessage
 from src.types.model_config import StageModelConfig
 from src.utils.compression import compress_messages
+from src.utils.headroom_memory import recall_memories as _hr_recall, store_memory as _hr_store
 
 logger = logging.getLogger("kinetic.agent")
 
@@ -1070,6 +1071,16 @@ Conversation:
                 extraction_count=(existing.extraction_count if existing else 0) + 1,
             )
             self._memory.write_profile(merged)
+            for fact in extracted.get("new_facts", []):
+                try:
+                    await _hr_store(fact, user_id=self.id, agent_id=self.id, category="fact")
+                except Exception:
+                    pass
+            for pref in extracted.get("new_preferences", []):
+                try:
+                    await _hr_store(pref, user_id=self.id, agent_id=self.id, category="preference")
+                except Exception:
+                    pass
             logger.info(
                 "[PROFILE] Extracted %d facts, %d preferences",
                 len(extracted.get("new_facts", [])),
@@ -1176,9 +1187,12 @@ Conversation:
                     }
                 ],
             )
-            logger.info("[MEMORY] Archived at %s", ts)
         except Exception as exc:
             logger.warning("[MEMORY] Archive failed: %s", exc)
+        try:
+            await _hr_store(text, user_id=self.id, agent_id=self.id, category="summary", metadata={"session": self._memory.session_id})
+        except Exception:
+            pass
 
     async def _snapshot_memory(self) -> None:
         messages = self._memory.get_messages()
@@ -1214,6 +1228,7 @@ Conversation:
             logger.warning("[MEMORY] Snapshot failed: %s", exc)
 
     async def _recall_memories(self, message: str) -> str:
+        parts: list[str] = []
         try:
             ensure_embedding()
             emb = await get_embedding(message)
@@ -1223,19 +1238,21 @@ Conversation:
                 message,
                 SearchOptions(top_k=3, metadata_filter={"type": "memory"}),
             )
-            if not results:
-                return ""
-            parts = []
-            for r in results:
+            for r in results or []:
                 if r.score < 0.2:
                     continue
                 ts = r.chunk.metadata.get("timestamp", "")
                 time_label = ts[:16] if ts else "unknown time"
                 parts.append(f"[{time_label}] {r.chunk.text[:200]}")
-            return "\n\n".join(parts)
         except Exception as exc:
             logger.warning("[MEMORY] Recall failed: %s", exc)
-            return ""
+        try:
+            shared = await _hr_recall(message, top_k=3, min_score=0.25)
+            for m in shared:
+                parts.append(f"[shared {m.category}] {m.content[:200]}")
+        except Exception:
+            pass
+        return "\n\n".join(parts)
 
     async def _execute_spawn_specialist(self, args: dict, current_depth: int = 0) -> str:
         try:
