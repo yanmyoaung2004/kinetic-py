@@ -447,6 +447,11 @@ class AgentInstance(IAgent):
 
             self._register_tool(create_send_message_tool(dispatch_fn))
 
+        from src.agents.shared_context import make_get_context_tool, make_list_context_tool, make_share_context_tool
+        self._register_tool(make_share_context_tool(self.id))
+        self._register_tool(make_get_context_tool())
+        self._register_tool(make_list_context_tool())
+
         if os.environ.get("BRAVE_API_KEY"):
             self._register_tool(create_web_search_tool())
 
