@@ -1,158 +1,324 @@
-# K.I.N.E.T.I.C. v2
+<p align="center">
+  <pre align="center">
+  _  ___   ___ _   _ _____ ___ _____ ___   _
+ | |/ _ \ / __| | | |_   _|_ _|_   _/ _ \ | |
+ | | | | | |  | |_| | | |  | |  | || | | || |
+ | | |_| | |__|  _  | | |  | |  | || |_| ||_|
+ |_|\___/ \___|_| |_| |_| |___| |_| \___/ (_)
+  </pre>
+  <br>
+  <b>Autonomous AI agent framework — Telegram, voice, RAG, 80+ tools, multi-agent pipelines.</b>
+  <br><br>
+  <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="MIT">
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6?style=for-the-badge&logo=windows" alt="Windows">
+  <img src="https://img.shields.io/badge/tests-89%20passed-3fb950?style=for-the-badge" alt="89 tests">
+  <br><br>
+  <b>K.I.N.E.T.I.C.</b> is a modular AI agent framework that runs entirely on your machine.<br>
+  Chat via Telegram, speak via push-to-talk voice, or use the web dashboard.<br>
+  It can scan your system for vulnerabilities, manage your Obsidian vault,<br>
+  track habits and pomodoro sessions, look up CVEs, check IPs against threat feeds,<br>
+  run code, search the web, send emails, schedule tasks — all through a unified<br>
+  multi-agent system with persistent memory, RAG, and auto-learning.
+  <br><br>
+  No cloud dependency. No data leaves your machine. Open source (MIT).
+</p>
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+---
 
-**Autonomous AI assistant with Telegram bot, voice chat, 80+ tools, RAG knowledge base, multi-agent pipelines, and multi-stage LLM routing.**
+## Overview
 
-K.I.N.E.T.I.C. is a modular AI agent framework that runs on your own machine. Chat via Telegram, speak via push-to-talk voice chat, or use the web dashboard. It can scan your system for vulnerabilities, manage your Obsidian vault, track habits and pomodoro sessions, look up CVEs, check IPs against threat feeds, and more — all through a unified multi-agent system with persistent memory and auto-learning.
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         ENTRY POINTS                                     │
+│                                                                            │
+│  Telegram Bot         FastAPI              CLI              Voice Chat     │
+│  (python-telegram-    port 18789          kinetic-cli       push-to-talk  │
+│   bot)                Web dashboard       onboard/models/    STT + TTS    │
+│                       OpenAPI /docs        skills/knowledge               │
+└──────────────────────────┬───────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                      KinetiCDispatcher                                    │
+│  Routes messages to agents, lazy-loads & caches, max depth 3            │
+│                                                                            │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐         │
+│  │   main     │  │   coding   │  │  security  │  │ productivity│         │
+│  │ orchestrat │→│  assistant  │→│   agent    │→│   agent    │ ...       │
+│  │ 15 tools   │  │ 21 tools   │  │ 35 tools   │  │ 11 tools   │         │
+│  └────────────┘  └────────────┘  └────────────┘  └────────────┘         │
+└──────────────────────────┬───────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    AgentInstance.process()                                │
+│                                                                            │
+│  1. Classify ──► chitchat? ──► quick reply (no LLM needed)              │
+│       │                                                                    │
+│  2. Recall memories (vector store + shared headroom memory)               │
+│       │                                                                    │
+│  3. Recall Obsidian notes (if vault configured)                           │
+│       │                                                                    │
+│  4. Inject learned skills                                                 │
+│       │                                                                    │
+│  5. Think loop (up to N iterations)                                       │
+│       │  ┌─────────────────────────────────────────────┐                  │
+│       │  │ Build msgs → [HEADROOM COMPRESSION] → LLM   │                  │
+│       │  │ → Tool call → execute → append result → repeat                │
+│       │  └─────────────────────────────────────────────┘                  │
+│       │                                                                    │
+│  6. Polish answer (multi-mode only)                                       │
+│       │                                                                    │
+│  7. Background tasks (deferred, never block):                             │
+│     ┌─────────────────────────────────────────────────────┐               │
+│     │ Profile extraction (3 msgs) │ Obsidian inject (10)  │               │
+│     │ Memory snapshot (5)         │ History compression   │               │
+│     │ Skill auto-learning         │ SOUL evolution (50)   │               │
+│     │ Memory compaction (5)       │ Failure learning (20) │               │
+│     └─────────────────────────────────────────────────────┘               │
+└──────────────────────────┬───────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                       LLM PROVIDERS                                       │
+│                                                                            │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐                 │
+│  │ classify │  │   think  │  │tool_call │  │  answer  │                 │
+│  │ Groq     │  │Cloudflare│  │ Lightning│  │ Lightning│                 │
+│  │ ~100 tok │  │ → Groq → │  │ → Groq   │  │ → Groq   │                 │
+│  │          │  │ Lightning│  │          │  │          │                 │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘                 │
+│                                                                            │
+│  HEADROOM COMPRESSION (optional):                                         │
+│  SmartCrusher → JSON tool outputs (30-90% fewer tokens)                   │
+│  CacheAligner → KV prefix cache hits                                      │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Architecture
+## Multi-Stage LLM Routing
 
-### Multi-Stage LLM Routing
+Each stage uses a different provider. If the primary fails, it falls through the chain automatically:
 
-K.I.N.E.T.I.C. uses a **multi-stage pipeline** where each stage is handled by a different provider optimized for its job:
+| Stage | Primary | Fallback 1 | Fallback 2 | Context |
+|-------|---------|------------|------------|---------|
+| **Classify** | Groq | Lightning | — | Message only (~100 tokens) |
+| **Think** | Cloudflare | Groq | Lightning | System + message + tools (~4K tokens) |
+| **Tool call** | Lightning | Groq | — | Same as think |
+| **Answer** | Lightning | Groq | — | Full history (~4-20K tokens) |
 
-```
-User message
-  │
-  ├── 1. Classify (Groq) — determines intent: question / command / chitchat / task
-  │     No history, just the message. ~100 tokens.
-  │
-  ├── 2. Think (Cloudflare → Groq → Lightning) — decides what tools to call
-  │     Lean context: system prompt + current message only. No history. ~4K tokens.
-  │     Falls back through providers if tool calling isn't supported.
-  │
-  ├── 3. Answer (Lightning → Groq) — formats the final response
-  │     Full history + tool results for context-aware formatting.
-  │     History length controlled by AGENT_MEMORY_MAX env var (default 200).
-  │
-  └── Background tasks (deferred, never block response):
-        ├── User profile extraction (every 3 msgs)
-        ├── Knowledge injection to Obsidian vault (every 10 msgs)
-        ├── Context compression
-        ├── Skill learning (auto after multi-step success)
-        └── SOUL evolution
-```
-
-See [`docs/architecture.md`](docs/architecture.md) for full architecture details.
+Providers are OpenAI-compatible — any endpoint with `/chat/completions` works (OpenAI, Anthropic, Groq, OpenRouter, Ollama, vLLM, etc.). Configured in `config/models.json`.
 
 ---
+
+## Agent System
 
 ### Multi-Agent Delegation
 
-The main agent is a **thin orchestrator** with ~15 core tools. Specialized tasks are delegated via `send_message` to sub-agents.
+The main agent is a **thin orchestrator** with ~15 core tools. Specialized work is delegated via `send_message`:
 
 ```
-main agent (orchestrator, 15 tools)
-  ├── obsidian-assistant    [15 tools] — vault: create, search, link, template, tags
+main (orchestrator, 15 core tools)
+  ├── obsidian-assistant    [15 tools] — vault: create, link, search, tags
   ├── coding-assistant      [21 tools] — code: write, debug, git, opencode
-  ├── security-agent        [35 tools] — system: scan, firewall, CVE, IP check, network
+  ├── security-agent        [35 tools] — system: scan, firewall, CVE, IP
   ├── productivity-agent    [11 tools] — habits, pomodoro
   └── system-agent          [ 4 tools] — temp cleanup, disk, startup
 ```
 
-Each specialist has only the tools it needs. The main agent delegates rather than doing specialist work itself.
+Agents are lazy-loaded, cached, and auto-evicted after 5 minutes idle.
 
----
+### Tool Whitelist
 
-### Self-Improving Learning Loop
+Each agent can restrict its tool set via the `"tools"` field in `agents.json`:
 
-After every successful multi-step response (2+ tool calls), the system automatically generates a reusable skill document:
-
-- **Trigger** — background task after multi-step success
-- **Extract** — the user's request, tool sequence, and agent used
-- **Generate** — a SOUL.md skill document at `config/skills/learned/<topic>.md`
-- **Reuse** — on future matching queries, the skill is injected as system prompt context
-
-Commands: `/skills` (list), `/forget_skill <name>` (remove)
-
----
-
-### Memory & Learning
-
-| Layer | What | How | Cost |
-|-------|------|-----|------|
-| **Conversation history** | Last 500 messages | JSONL file, trimmed oldest-first | ~20-50K tokens (dominant cost) |
-| **User profile** | Your facts & preferences | Extracted by LLM every 3 msgs, persists across sessions | ~200 tokens |
-| **Vector RAG** | Past memories as embeddings | Cosine similarity search, recalled before each response | ~300 tokens |
-| **Obsidian auto-indexing** | Your vault notes | Auto-searched on relevant queries | ~500 tokens (conditional) |
-| **Learned skills** | Successful tool sequences | Auto-saved as SOUL.md, injected on matching queries | ~300 tokens (conditional) |
-
-See [`docs/capabilities.md`](docs/capabilities.md) for the full tool list (80+ tools).
-
----
-
-### Provider Configuration
-
-Configured in `config/models.json`. Each stage has its own provider with fallback chain:
-
-```
-classify:  Groq → Lightning
-think:     Cloudflare → Groq → Lightning
-tool_call: Lightning → Groq
-answer:    Lightning → Groq
+```json
+{ "id": "web-agent", "tools": ["web_search", "scrape_and_index"] }
 ```
 
-See [`docs/setup.md`](docs/setup.md) for installation and configuration.
+- **`null` / omitted** — all tools
+- **`[]`** — no tools (chat-only)
+- **`["a", "b"]`** — only these tools
+
+Tools are progressively loaded — only tools matching the user's message keywords are offered, reducing token waste.
+
+---
+
+## Memory & Persistence
+
+K.I.N.E.T.I.C. has a layered memory system:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                       MEMORY LAYERS                               │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │  1. Conversation History (JSONL, 500 msg cap)        │        │
+│  │     agents_workspace/<id>/history.jsonl               │        │
+│  │     → Oldest messages auto-trimmed, FIFO              │        │
+│  │     → LLM-summarized into [COMPRESSED HISTORY] at 60+│        │
+│  └──────────────────────────────────────────────────────┘        │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │  2. User Profile (JSON, per-agent + global merge)    │        │
+│  │     agents_workspace/<id>/profile.json                │        │
+│  │     agents_workspace/<id>/global_profile.json          │        │
+│  │     → LLM extracts permanent facts every 3 messages   │        │
+│  │     → Sensitive info (email, phone, URLs) filtered    │        │
+│  │     → `/forget_fact <keyword>` to remove              │        │
+│  └──────────────────────────────────────────────────────┘        │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │  3. Vector RAG (SQLite + numpy cosine similarity)    │        │
+│  │     agents_workspace/<id>/knowledge/store.db          │        │
+│  │     → Memories archived with metadata.type=memory    │        │
+│  │     → Top-3 recalled before each response             │        │
+│  │     → FTS5 full-text search as fallback               │        │
+│  └──────────────────────────────────────────────────────┘        │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │  4. Shared Memory (SQLite, opt-in HEADROOM_MEMORY=1) │        │
+│  │     agents_workspace/shared/memory.db                 │        │
+│  │     → Cross-agent: any agent stores, any recalls     │        │
+│  │     → Uses same embedding model as RAG                │        │
+│  │     → Semantic search across all agents' memories    │        │
+│  └──────────────────────────────────────────────────────┘        │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │  5. Shared Context (JSON files with TTL, always on)  │        │
+│  │     agents_workspace/shared/context/<key>.json         │        │
+│  │     → Agent A shares, Agent B reads                   │        │
+│  │     → TTL auto-purge, list all active entries        │        │
+│  │     → Tools: share_context / get_context / list_context       │
+│  └──────────────────────────────────────────────────────┘        │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Learning System
+
+K.I.N.E.T.I.C. learns from you in three ways:
+
+### Skill Auto-Learning
+After every successful multi-step response (2+ tool calls), the sequence is automatically saved as a reusable skill document at `config/skills/learned/<topic>.md`. On future matching queries, the skill is injected as system prompt context for zero-shot expertise.
+
+### Failure Learning (opt-in, `HEADROOM_LEARN=1`)
+Scans agent logs for failed tool calls, correlates errors with what worked on retry, and writes structured corrections to `AGENTS.md` under managed markers:
+
+```
+<!-- headroom:learn:start -->
+### Tool Failures
+- **Tool 'system_disk_usage' frequently fails** (x4) — Command timed out
+### Retry Patterns
+- **Retry with adjusted params on failure**
+<!-- headroom:learn:end -->
+```
+
+Also available via `kinetic-cli learn scan [--apply]`.
+
+### SOUL Evolution
+Every 50 messages, the system analyzes recent conversations and appends auto-evolution notes to the agent's `SOUL.md`, gradually improving behavior over time.
+
+---
+
+## Tool System (80+ tools)
+
+| Category | Tools |
+|----------|-------|
+| **File** | read, write, edit, delete, list, undo, download_url |
+| **Code** | run_code, execute_command, git |
+| **Browser** | navigate, click, fill, extract, screenshot, html, close |
+| **Knowledge** | query, index_file, index_url, index_github, scrape, stats |
+| **Email** | read, read_body, send, reply |
+| **Web** | web_search (Brave), news, weather |
+| **Security** | scan_system, scan_network, process_info, kill_process, block_ip, check_logs, audit_startup, audit_tasks, audit_usb, ping_sweep, scan_ports, audit_wifi, lookup_cve, check_ip, audit_users, firewall, drive_health, persistence, defender, hosts, browser_audit, set_watch, list_watches, remove_watch |
+| **Productivity** | pomodoro, habits, obsidian (create, edit, search, graph, daily, canvas, template, tags, spaced repetition), daily_briefing |
+| **Communication** | send_message, send_file, spawn_specialist, spawn_swarm, generate_image, tts_speak, create_presentation |
+| **Scheduling** | schedule_task, list_tasks, remove_task, create_monitor, list_monitors, get_current_time |
+| **System** | get_system_info, read_env_var, system_temp_cleanup, disk_usage, startup_optimize |
+| **Context** | share_context, get_context, list_context |
+| **Other** | zip, unzip, youtube_info, image_search, list_skills, call_opencode, apply_opencode, run_pipeline |
+
+See [`docs/capabilities.md`](docs/capabilities.md) for details.
+
+---
+
+## Context Compression (opt-in, `HEADROOM_COMPRESSION=1`)
+
+Uses [headroom-ai](https://github.com/headroomlabs-ai/headroom) to compress JSON tool outputs before they reach the LLM:
+
+| Compressor | What | Savings |
+|------------|------|---------|
+| **SmartCrusher** | JSON arrays (tool outputs, search results, logs) | 30–90% |
+| **CacheAligner** | Stabilizes prefixes for provider KV cache | 0% (cache hit rate) |
+
+Compression happens inline in the think loop, right before the LLM call. If it fails or inflates tokens, original messages pass through unchanged.
+
+---
+
+## Voice Chat
+
+| Feature | Detail |
+|---------|--------|
+| **Push-to-talk** | Press Alt+V, speak, release, hear response |
+| **System tray** | Colored status icon (idle/recording/processing/speaking) |
+| **STT** | Google Web Speech (default) or faster-whisper (offline) |
+| **TTS** | Edge TTS with Microsoft Neural voices, configurable speed |
+| **Interrupt** | Press hotkey during playback to stop and re-record |
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.12+
-- Windows (for voice chat with PyAudio + keyboard hooks)
-- Telegram API token
-
-### 1. Install
-
 ```bash
+# 1. Install
 pip install -e ".[dev]"
-```
 
-### 2. Configure
+# 2. Configure
+kinetic-cli onboard
+kinetic-cli models
 
-```bash
-kinetic-cli onboard       # First-time setup wizard
-kinetic-cli models        # Configure LLM providers
-```
-
-Copy `.env.example` to `.env` and set at minimum:
-
-```
-TELEGRAM_BOT_TOKEN=your_token_here
-```
-
-### 3. Run
-
-```bash
+# 3. Run
 kinetic
 ```
 
 Opens Telegram bot + FastAPI dashboard at `http://localhost:18789`.
 
-### Context Compression (optional)
-
-Enable headroom-ai to compress tool outputs and history before they reach the LLM — 30–90% fewer tokens, same answers:
+### Optional features
 
 ```bash
-export HEADROOM_COMPRESSION=1       # enable compression
-export HEADROOM_COMPRESSION_RATIO=0.3  # keep ~30% (aggressive)
+# Compress tool outputs (30-90% fewer tokens)
+export HEADROOM_COMPRESSION=1
+export HEADROOM_COMPRESSION_RATIO=0.3
+
+# Shared cross-agent memory
+export HEADROOM_MEMORY=1
+
+# Auto failure learning
+export HEADROOM_LEARN=1
+
 kinetic
 ```
 
-### 4. Voice Chat (optional)
+See [`docs/setup.md`](docs/setup.md) for full installation and configuration.
 
-```bash
-voice.bat           # Launches kinetic + voice chat, no console windows
-```
+---
 
-Requires admin for global hotkey.
+## CLI Reference
+
+| Command | Description |
+|---------|-------------|
+| `kinetic` | Run bot + API + scheduler |
+| `kinetic-cli onboard` | First-time setup wizard |
+| `kinetic-cli models` | Configure providers / stage routing |
+| `kinetic-cli agents` | Manage agent registry |
+| `kinetic-cli knowledge` | Manage knowledge base |
+| `kinetic-cli skills list/install/remove/info` | Manage skill packs |
+| `kinetic-cli pipelines` | Manage pipelines |
+| `kinetic-cli learn scan [--apply]` | Analyze logs and learn from failures |
 
 ---
 
@@ -160,18 +326,24 @@ Requires admin for global hotkey.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TELEGRAM_BOT_TOKEN` | — | Telegram bot token (required) |
+| **Required** | | |
+| `TELEGRAM_BOT_TOKEN` | — | Telegram bot token |
+| **API** | | |
 | `API_PORT` | `18789` | FastAPI server port |
 | `AGENT_MEMORY_MAX` | `200` | Max history messages for answer stage |
+| **Voice** | | |
 | `HIDE_CONSOLE` | `true` | Hide terminal windows |
 | `PTT_KEY` | `alt+v` | Push-to-talk hotkey |
 | `TTS_VOICE` | `en-GB-RyanNeural` | Edge TTS voice |
 | `TTS_SPEED` | `+20%` | TTS speaking rate |
 | `STT_BACKEND` | `google` | `google` or `offline` |
-| `RATE_LIMIT_RETRY_SECONDS` | `3` | LLM 429 retry delay |
-| `HEADROOM_COMPRESSION` | — | Enable headroom-ai context compression (`1` to enable) |
-| `HEADROOM_COMPRESSION_RATIO` | — | Target keep ratio (e.g. `0.3` = keep 30%) |
-| `HEADROOM_MODEL` | `gpt-4o` | Model for token counting in compression |
+| **headroom-ai** | | |
+| `HEADROOM_COMPRESSION` | — | Context compression (`1` to enable) |
+| `HEADROOM_COMPRESSION_RATIO` | — | Target keep ratio (e.g. `0.3`) |
+| `HEADROOM_MEMORY` | — | Shared cross-agent memory (`1` to enable) |
+| `HEADROOM_LEARN` | — | Auto failure learning (`1` to enable) |
+| `HEADROOM_MODEL` | `gpt-4o` | Model for token counting |
+| **LLM Providers** | | |
 | `LIGHTNING_API_KEY` | — | Lightning provider key |
 | `GROQ_API_KEY` | — | Groq provider key |
 | `CLOUD_FLARE_API_KEY` | — | Cloudflare Workers AI key |
