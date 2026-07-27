@@ -95,41 +95,66 @@
 
 ### Voice Pipeline
 
+K.I.N.E.T.I.C. has two independent voice paths — a **desktop push-to-talk client** (`voice_chat.py`) and a **Telegram voice message handler** (`main.py`).
+
 ```
-  Telegram Voice Msg     Push-to-Talk (Alt+V)
-         │                       │
-         ▼                       ▼
-  ┌─────────────────────────────────────────┐
-  │  handle_voice() / main.py:791           │
-  │  Download .ogg → agent_sandbox/         │
-  └────────────────┬────────────────────────┘
-                   │
-                   ▼
-  ┌─────────────────────────────────────────┐
-  │  Online STT (default)  │  Offline STT   │
-  │  Groq Whisper API      │  faster-whisper│
-  │  whisper-large-v3-turbo│  tiny, cpu, i8 │
-  │  GROQ_API_KEY required │  STT_BACKEND=  │
-  │                       │  offline        │
-  └────────────────┬────────────────────────┘
-                   │
-                   ▼
-         "[Voice transcribed]: <text>"
-                   │
-                   ▼
-            Dispatcher → Agent → Response
-                   │
-                   ▼
-  ┌─────────────────────────────────────────┐
-  │  TTS Delivery                            │
-  │                                          │
-  │  Agent tool: tts_speak(text, voice)      │
-  │  Auto TTS:   /tts_on → every response   │
-  │  Engine:     edge-tts (Microsoft Neural) │
-  │  Voices:     en-GB-RyanNeural (default)  │
-  │              configurable via TTS_VOICE  │
-  │  Speed:      configurable via TTS_SPEED  │
-  └─────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│            DESKTOP CLIENT (voice_chat.py)                                 │
+│                                                                            │
+│  System tray icon with status indicator (idle/recording/processing/speak) │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │  Press Alt+V ──► PyAudio captures mic (16kHz, 16-bit, mono)        │  │
+│  │     frames buffered while key held, released → WAV file             │  │
+│  │     No VAD, no silence detection — intentional push-to-talk         │  │
+│  └───────────────────────────┬─────────────────────────────────────────┘  │
+│                              │                                            │
+│                              ▼                                            │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │  STT (2 backends)                                                     │ │
+│  │                                                                        │ │
+│  │  Default (online):    Google Web Speech API (speech_recognition)      │ │
+│  │  STT_BACKEND=offline: faster-whisper (tiny, CPU, int8, ~75MB model)  │ │
+│  │  Both process full WAV → text (no streaming)                         │ │
+│  └───────────────────────────┬──────────────────────────────────────────┘ │
+│                              │                                            │
+│                              ▼                                            │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │  HTTP POST /api/chat { message, voice: true }                        │ │
+│  │  → Server prepends [VOICE MODE] instruction                          │ │
+│  │    "respond conversationally, no markdown, no emojis, no emotional   │ │
+│  │     markers — optimized for TTS playback"                            │ │
+│  │  → Agent processes and responds                                      │ │
+│  └───────────────────────────┬──────────────────────────────────────────┘ │
+│                              │                                            │
+│                              ▼                                            │
+│  ┌──────────────────────────────────────────────────────────────────────┐ │
+│  │  TTS (edge-tts, Microsoft Neural voices)                              │ │
+│  │                                                                        │ │
+│  │  Response → strip markdown/asterisks → edge_tts.Communicate()        │ │
+│  │  → stream MP3 chunks → ffmpeg decode PCM (24kHz, s16le, mono)       │ │
+│  │  → PyAudio plays through speakers (4KB chunks, interruptable)        │ │
+│  │  → Press Alt+V again during playback to interrupt and re-record      │ │
+│  │                                                                        │ │
+│  │  Voices: en-GB-RyanNeural (default), configurable via TTS_VOICE      │ │
+│  │  Speed:  configurable via TTS_SPEED (e.g. +20%, -10%)               │ │
+│  └──────────────────────────────────────────────────────────────────────┘ │
+│                                                                            │
+│  Manages kinetic backend as subprocess (auto-start, tray Restart/Quit)    │
+│  Settings button opens .env in Notepad                                    │
+└──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│            TELEGRAM PATH (main.py)                                        │
+│                                                                            │
+│  Voice message received → download .ogg from Telegram servers            │
+│  → Groq Whisper API (whisper-large-v3-turbo, 120s timeout)               │
+│  → Prefix "[Voice transcribed]: <text>" → dispatch to agent              │
+│  → If /tts_on mode: response auto-converted to speech via edge-tts       │
+│    and sent as Telegram audio message (not streaming)                    │
+│                                                                            │
+│  Agent can also call tts_speak(text, voice) tool to send audio on demand │
+│  → edge-tts MP3 → queued → delivered as Telegram document                │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 Each stage uses a different provider. If the primary fails, it falls through the chain automatically:
