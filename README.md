@@ -1,11 +1,8 @@
 <p align="center">
-  <pre align="center">
-  _  ___   ___ _   _ _____ ___ _____ ___   _
- | |/ _ \ / __| | | |_   _|_ _|_   _/ _ \ | |
- | | | | | |  | |_| | | |  | |  | || | | || |
- | | |_| | |__|  _  | | |  | |  | || |_| ||_|
- |_|\___/ \___|_| |_| |_| |___| |_| \___/ (_)
-  </pre>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/logo-dark.png">
+    <img src="images/logo-white.png" alt="K.I.N.E.T.I.C." width="450">
+  </picture>
   <br>
   <b>Autonomous AI agent framework — Telegram, voice, RAG, 80+ tools, multi-agent pipelines.</b>
   <br><br>
